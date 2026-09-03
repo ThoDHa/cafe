@@ -23,6 +23,8 @@ Drinks only, extracted from the recipes repository: the five sections of `menu.h
 
 Customization model per drink: temperature (hot or iced, where offered), milk, sweetener type, sweetness level, cold foam (iced drinks only), notes, and quantity. The source menu lists no prices, so v1 carries none.
 
+Each menu item has an optional photo: files drop into `shared/assets/menu/` and are served at `/images/menu/<file>`, with the item's `imagePath` pointing at the public URL. Photos are absent today; the UI shows a styled placeholder per item until they arrive, one drink at a time.
+
 ## Roadmap
 
 | Checkpoint | Scope | Status |
