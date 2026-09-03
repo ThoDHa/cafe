@@ -1,0 +1,218 @@
+.barista {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1rem 1rem 3rem;
+  font-family: var(--body);
+  color: var(--ink);
+}
+
+.barista-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  border: 2px solid var(--cobalt);
+  box-shadow: inset 0 0 0 4px var(--sua), inset 0 0 0 5px var(--cobalt);
+  background: var(--sua);
+  padding: 0.9rem 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.barista-header .eyebrow {
+  margin: 0 0 0.3rem;
+  font-size: 0.66rem;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--seal);
+  font-weight: 600;
+}
+
+.barista-header h1 {
+  margin: 0;
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: clamp(1.2rem, 4vw, 1.7rem);
+  color: var(--cobalt);
+}
+
+.barista-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  align-items: flex-end;
+}
+
+.lanes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.9rem;
+  align-items: start;
+}
+
+@media (max-width: 760px) {
+  .lanes {
+    grid-template-columns: 1fr;
+  }
+}
+
+.lane {
+  background: var(--sua-deep);
+  border: 1.5px solid var(--rule);
+  border-radius: 8px;
+  padding: 0.7rem;
+}
+
+.lane[data-lane="new"] {
+  border-top: 4px solid var(--seal);
+}
+
+.lane[data-lane="making"] {
+  border-top: 4px solid var(--cobalt);
+}
+
+.lane[data-lane="done"] {
+  border-top: 4px solid var(--matcha);
+}
+
+.lane-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0 0.2rem 0.5rem;
+}
+
+.lane-head h2 {
+  margin: 0;
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: 1rem;
+  color: var(--cobalt);
+  letter-spacing: 0.04em;
+}
+
+.lane-count {
+  margin-left: auto;
+  background: var(--sua);
+  border: 1.5px solid var(--rule);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0 0.5rem;
+}
+
+.lane-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.order-card {
+  background: var(--sua);
+  border: 1.5px solid var(--rule);
+  border-radius: 6px;
+  padding: 0.6rem 0.7rem;
+}
+
+.order-card.status-cancelled {
+  opacity: 0.6;
+}
+
+@keyframes order-flash {
+  0%,
+  60% {
+    background: var(--sua);
+  }
+  20%,
+  40% {
+    background: #f7d488;
+  }
+}
+
+.order-card.flash {
+  animation: order-flash 2.5s ease-out;
+}
+
+.card-line {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+}
+
+.order-number {
+  font-family: var(--display);
+  font-size: 1.15rem;
+  color: var(--cobalt);
+}
+
+.customer-name {
+  font-family: var(--names);
+  font-style: italic;
+  color: var(--matcha);
+  font-size: 0.9rem;
+}
+
+.elapsed {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85rem;
+  color: var(--ink-muted);
+}
+
+.card-items {
+  list-style: none;
+  margin: 0.45rem 0 0;
+  padding: 0;
+  font-size: 0.92rem;
+}
+
+.card-items .quantity {
+  font-weight: 600;
+}
+
+.card-items .detail {
+  color: var(--ink-muted);
+  font-size: 0.82rem;
+}
+
+.card-items .notes {
+  display: block;
+  font-family: var(--names);
+  font-style: italic;
+  color: var(--seal);
+  font-size: 0.85rem;
+}
+
+.card-actions {
+  display: flex;
+  gap: 0.45rem;
+  margin-top: 0.6rem;
+}
+
+.card-actions button {
+  font: inherit;
+  cursor: pointer;
+  border: 1.5px solid var(--cobalt);
+  background: var(--cobalt);
+  color: var(--sua);
+  border-radius: 6px;
+  padding: 0.35rem 0.8rem;
+  font-weight: 600;
+}
+
+.card-actions button.ghost {
+  background: none;
+  color: var(--cobalt);
+  text-decoration: underline;
+  border: none;
+  padding: 0.35rem 0.2rem;
+}
+
+.barista .ghost {
+  background: none;
+  border: none;
+  color: var(--cobalt);
+  text-decoration: underline;
+  font: inherit;
+  cursor: pointer;
+  padding: 0.2rem 0;
+}
