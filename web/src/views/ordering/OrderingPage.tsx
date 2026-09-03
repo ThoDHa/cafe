@@ -378,12 +378,10 @@ function Sheet({
   title,
   onClose,
   children,
-  footer,
 }: {
   title: string;
   onClose: () => void;
   children: ReactNode;
-  footer?: ReactNode;
 }) {
   return (
     <div className="sheet-backdrop" onClick={onClose}>
@@ -400,7 +398,6 @@ function Sheet({
           </button>
         </div>
         {children}
-        {footer && <div className="sheet-foot">{footer}</div>}
       </div>
     </div>
   );
