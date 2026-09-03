@@ -59,7 +59,10 @@ def test_order_line_documents_the_frozen_bounds() -> None:
     assert quantity["maximum"] == 10
     notes = line["notes"]
     assert notes["description"]
-    assert notes["maxLength"] == 200
+    string_variants = [
+        variant for variant in notes["anyOf"] if variant.get("type") == "string"
+    ]
+    assert string_variants[0]["maxLength"] == 200
 
 
 def test_order_documents_its_fields() -> None:
