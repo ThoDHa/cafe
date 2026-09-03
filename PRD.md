@@ -8,14 +8,14 @@ A locally run ordering system for the home cafe behind the `recipes` repository 
 
 **Problem:** Verbal ordering at a home cafe: no queue visibility for the person making drinks, no status visibility for guests waiting.
 
-**Solution:** Two React apps plus one Express server, sharing a typed contract, with Server-Sent Events for liveness and SQLite for durability.
+**Solution:** One React app serving two views (guest ordering at `/`, barista queue at `/barista`) plus one Express server, sharing a typed contract, with Server-Sent Events for liveness and SQLite for durability.
 
 ## 2. Users
 
 | User | Device | Needs |
 |------|--------|-------|
-| Guest | Personal phone, ordering app | Browse menu, customize and place an order, learn when the drink is ready, reorder past drinks |
-| Barista | Counter tablet or laptop, queue app | See new orders the moment they arrive, work the queue in order, mark drinks done or cancel |
+| Guest | Personal phone, ordering view at `/` | Browse menu, customize and place an order, learn when the drink is ready, reorder past drinks |
+| Barista | Counter tablet or laptop, queue view at `/barista` | See new orders the moment they arrive, work the queue in order, mark drinks done or cancel |
 
 No authentication anywhere: this is a trusted household network. The guest's device is the guest's identity (see order history, section 5.8).
 
@@ -63,7 +63,7 @@ Source of truth: `../recipes`. Extraction is hand-curated from `menu.html` (the 
 
 ### 5.1 Menu Browsing (Guest)
 
-The ordering app renders the five sections from `menu.json`, mobile-first, usable at 360 pixels wide, with the ported design identity (cream/cobalt palette, Bungee display, Lora names, Be Vietnam Pro body, nóng/đá pill tags). Item cards show photo or placeholder.
+The ordering view renders the five sections from `menu.json`, mobile-first, usable at 360 pixels wide, with the ported design identity (cream/cobalt palette, Bungee display, Lora names, Be Vietnam Pro body, nóng/đá pill tags). Item cards show photo or placeholder.
 
 ### 5.2 Drink Customizer (Guest)
 
@@ -77,9 +77,9 @@ Cart supports quantity adjustment and line removal. Submission produces a contra
 
 After placing, the guest sees their order's status (placed, making, ready) updating live without refresh. Reconnects heal by refetch: on every SSE (re)connection the client refetches state, so missed events never leave a stale screen.
 
-### 5.5 Queue Board (Barista)
+### 5.5 Queue Board (Barista, `/barista`)
 
-Three lanes, New, Making, Done: order cards show number, customer name if given, elapsed time since placement (ticking locally, derived from timestamps), and per-line detail with temperature, modifier selections spelled out via menu lookup, and notes. Actions: start (placed to making), complete (making or placed to done), cancel (placed only). The Done lane shows recent completions so finished drinks are cleared knowingly.
+Three lanes, New, Making, Done: order cards show number, customer name if given, elapsed time since placement (ticking locally, derived from timestamps), and per-line detail with temperature, modifier selections spelled out via menu lookup, and notes. Actions: start (placed to making), complete (making or placed to done), cancel (placed only). The Done lane shows recent completions so finished drinks are cleared knowingly. The route is lazy-loaded, so the guest path never downloads queue code.
 
 ### 5.6 Notifications
 
@@ -106,8 +106,8 @@ Orders live in SQLite (better-sqlite3, WAL mode): a single `orders` table with i
 
 | Mode | Commands | Shape |
 |------|----------|-------|
-| Development | `npm install`, `npm run dev` | Server on 3001, Vite apps on 5173 (customer) and 5174 (barista), `/api` proxied same-origin |
-| Production | `npm run build`, `npm start` | Express serves both built SPA bundles on one origin (3001): customer at `/`, barista at `/barista` |
+| Development | `npm install`, `npm run dev` | Server on 3001, web app on 5173 (both routes served by one Vite dev server), `/api` and `/images` proxied same-origin |
+| Production | `npm run build`, `npm start` | Express serves the built SPA bundle on one origin (3001); `/` renders the ordering view, `/barista` the queue view, with SPA fallback routing |
 | Container | `docker compose up --build` | Single multi-stage image (Debian slim, non-root), named volume at the SQLite path, `restart: unless-stopped` |
 
 ## 6. API Contract Summary
@@ -129,12 +129,11 @@ Errors: 422 with `{ error, details? }` for validation and transition rejections,
 
 npm workspaces, Node 24, TypeScript strict throughout:
 
-- `shared`: contract types and `menu.json`; imported verbatim by the other three packages; validation tests live here
+- `shared`: contract types and `menu.json`; imported verbatim by server and web; validation tests live here
 - `server`: Express 5, layered as routes, order service (lifecycle, daily numbering), db (better-sqlite3 behind an interface), SSE hub (client registry, broadcast, heartbeat pruning), zod validation middleware
-- `ordering-web`: React 19 plus Vite; api client interface with mock (used in dev slice and as permanent test double), cart reducer, status store, notifications module, order-history module
-- `barista-web`: React 19 plus Vite; api client interface with mock feed, orders store (snapshot plus events with reconnect replacement), alerting
+- `web`: React 19 plus Vite, one app with route-split views: `/` (menu, customizer, cart, status, history) and lazily loaded `/barista` (queue board, alerting); api client interfaces with mocks (used in dev slices and as permanent test doubles), cart reducer, status and orders stores, notifications module, order-history module; a single `design/tokens.css` serves both views
 
-Both front ends code against client interfaces; the real fetch/EventSource implementations arrive at integration, making integration a swap rather than a rewrite.
+The web app codes against client interfaces; the real fetch/EventSource implementations arrive at integration, making integration a swap rather than a rewrite.
 
 ## 8. Decisions
 
@@ -155,6 +154,7 @@ Both front ends code against client interfaces; the real fetch/EventSource imple
 | 13 | Single Docker container over per-component | The server already serves everything same-origin; splitting adds containers and a router for nothing |
 | 14 | Debian slim over Alpine | better-sqlite3 ships glibc prebuilds; musl adds build fragility for marginal size savings |
 | 15 | Daily order numbers via MAX-today in insert transaction | Global sequence: unfriendly numbers; counter row: second source of truth |
+| 16 | One web app, route-split views (`/`, lazy `/barista`) | Two SPAs (original plan): duplicated design tokens, two builds and proxy configs, extra workspace; `/orders` as the route name: reads as guest order history to guests |
 
 ## 9. Roadmap
 
@@ -162,14 +162,14 @@ Contract-first checkpoint order; 2 through 4 are parallel-ready with disjoint te
 
 | Order | Checkpoint | Scope | Verified by |
 |-------|------------|-------|-------------|
-| 1 | CAFE-1-1 Contract | Monorepo scaffold, git init, shared types, menu.json extraction, API.md | Types compile; menu validation suite; three-drink spot check |
+| 1 | CAFE-1-1 Contract | Monorepo scaffold (three workspaces: `shared`, `server`, `web`), git init, shared types, menu.json extraction, API.md | Types compile; menu validation suite; three-drink spot check |
 | 2 | CAFE-1-2 Backend | Routes, order service, db layer, SSE hub, static images | supertest integration suite (validation, transitions, SSE delivery, restart persistence) |
-| 3 | CAFE-1-3 Customer app | Scaffold and tokens, client interface and mock, cart and customizer logic, views with live status, photos-or-placeholder, ready notifications, history and reorder | vitest unit and component suites against mocks |
-| 4 | CAFE-1-4 Barista app | Scaffold and client interface, orders store, board view with alerting and hidden-tab notifications | vitest unit and component suites against mock feed |
-| 5 | CAFE-1-5 Integration | Real clients, dev proxying, production serving, root scripts, README accuracy, end-to-end checklist | Two-browser checklist: live delivery both directions, cancel path, simultaneous orders, restart persistence |
+| 3 | CAFE-1-3 Customer ordering view | Web scaffold and tokens, client interface and mock, cart and customizer logic, views with live status, photos-or-placeholder, ready notifications, history and reorder | vitest unit and component suites against mocks |
+| 4 | CAFE-1-4 Barista queue view | `/barista` route module, orders store, board view with alerting and hidden-tab notifications | vitest unit and component suites against mock feed |
+| 5 | CAFE-1-5 Integration | Real clients, dev proxying, production serving with SPA fallback, root scripts, README accuracy, end-to-end checklist | Two-browser checklist: live delivery both directions, cancel path, simultaneous orders, restart persistence |
 | 6 | CAFE-1-6 Docker | Dockerfile, compose, volume, .dockerignore | Clean-checkout compose run, down/up persistence, layer inspection, image size recorded |
 
-Testing stance: TDD throughout (failing tests first each unit); the barista and customer suites run against mocks, the server suite against the real app with in-memory SQLite, and checkpoint 5 adds the manual two-screen checklist as final verification. No test may be skipped to reach green.
+Testing stance: TDD throughout (failing tests first each unit); the view suites run against mocks, the server suite against the real app with in-memory SQLite, and checkpoint 5 adds the manual two-screen checklist as final verification. No test may be skipped to reach green.
 
 ## 10. Risks
 
@@ -188,6 +188,5 @@ Testing stance: TDD throughout (failing tests first each unit); the barista and 
 - Pricing: schema extension plus display, if the owner ever publishes prices
 - Push notifications for closed tabs (service worker plus VAPID)
 - Kitchen food and cocktail ordering (`kitchen.html`, `bar.html`)
-- Shared design package extraction if the two apps' token systems drift
 - Multi-barista claiming, order editing after placement, i18n toggle
 - GitHub issue mirroring of checkpoints if GitHub-native tracking becomes wanted
