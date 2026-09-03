@@ -17,6 +17,15 @@ npm workspaces monorepo, Node 24, TypeScript everywhere:
 
 Both front ends reuse the visual identity of the existing `recipes/menu.html` (cream and cobalt palette, Bungee, Lora, and Be Vietnam Pro type stack).
 
+### Notifications
+
+Two directions, both riding the existing SSE events with no server changes:
+
+- Barista, drinks coming in: flash highlight plus chime on the board; when the tab is hidden, a browser notification with the order number
+- Guest, drink ready: an opt-in "notify me when ready" on the confirmation screen (the same gesture grants Notification permission); completion fires a browser notification plus chime, with the in-page live status always as the baseline
+
+Notifications use the Notification API from the live page rather than push infrastructure: a push server and VAPID keys add nothing to a locally run system, with the known tradeoff that notifications arrive while the ordering tab is open.
+
 ## Menu Scope
 
 Drinks only, extracted from the recipes repository: the five sections of `menu.html` (Cà Phê, Mát-cha, Trà, Giải Khát, Kem) with modifier rules from `cafe.md`. Cocktails (`bar.html`) and kitchen food (`kitchen.html`) are out of scope for v1.
