@@ -1,12 +1,16 @@
-# Dependencies
+# Python
+.venv/
+__pycache__/
+.pytest_cache/
+
+# Node
 node_modules/
 
 # Build outputs
 dist/
 
 # Local data
-server/data/*.db
-server/data/*.db-*
+server/data/
 .env
 
 # Task tracking (local only, not versioned)

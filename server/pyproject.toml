@@ -1,0 +1,33 @@
+[project]
+name = "cafe-server"
+version = "0.1.0"
+description = "Cafe Ong Tho ordering API and static host"
+authors = [
+    { name = "Tho Ha", email = "ThoDHa@users.noreply.github.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi>=0.141.1",
+    "uvicorn>=0.52.4",
+]
+
+[project.scripts]
+export-openapi = "app.openapi_export:main"
+
+[build-system]
+requires = ["uv_build>=0.11.22,<0.12.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "app"
+module-root = ""
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "jsonschema>=4.26.0",
+    "pytest>=9.1.1",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
