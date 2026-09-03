@@ -15,7 +15,7 @@ A locally run ordering system for the home cafe behind the `recipes` repository 
 | User | Device | Needs |
 |------|--------|-------|
 | Guest | Personal phone, ordering surface | Browse menu, customize and place an order, learn when the drink is ready, reorder past drinks |
-| Barista | Counter tablet or laptop, queue surface | See new orders the moment they arrive, work the queue in order, mark drinks done or cancel |
+| Barista | Phone or tablet, queue surface | See new orders the moment they arrive, work the queue in order, mark drinks done or cancel |
 
 No authentication: this is a trusted household network. The guest's device is the guest's identity (FR-8).
 
@@ -66,7 +66,7 @@ Each menu item carries: Vietnamese name, English description, hot/iced availabil
 
 **FR-4 Live status.** After placing, the guest sees the order's status (placed, making, ready) change without refresh. If the connection drops, the view heals to the true state after reconnection; stale screens are not acceptable.
 
-**FR-5 Queue board.** The barista surface shows three lanes: New, Making, Done. Order cards show number, customer name if given, elapsed time since placement, and per-line detail with temperature, modifiers spelled out by name, and notes. Actions: start, complete (including a direct placed-to-done fast path), and cancel (placed only). The Done lane shows recent completions so finished drinks are cleared knowingly.
+**FR-5 Queue board.** The barista surface shows three lanes: New, Making, Done. It is used on a phone or tablet in hand, so it is mobile-first like the ordering surface, with lanes arranged responsively (stacking on narrow screens, side by side where room allows). Order cards show number, customer name if given, elapsed time since placement, and per-line detail with temperature, modifiers spelled out by name, and notes. Actions: start, complete (including a direct placed-to-done fast path), and cancel (placed only). The Done lane shows recent completions so finished drinks are cleared knowingly.
 
 **FR-6 Notifications.** New orders alert the barista (visual flash, optional sound, and an OS-level notification when the surface is not visible). Guests may opt in, from an explicit gesture, to a ready notification (notification plus sound) when their order completes. Notification permission is never requested on page load. Denied permission must degrade silently to the in-page experience.
 
