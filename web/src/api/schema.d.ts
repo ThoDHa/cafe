@@ -3,7 +3,112 @@
  * Do not make direct changes to the file.
  */
 
-export type paths = Record<string, never>;
+export interface paths {
+    "/api/menu": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the menu
+         * @description The full validated menu: five categories, modifier groups, and every orderable drink with its customization allowance (FR-1).
+         */
+        get: operations["read_menu_api_menu_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List orders
+         * @description Newest first. Filter by status=active (placed plus in_progress) for the barista board, or by a single lifecycle status (FR-5).
+         */
+        get: operations["list_orders_api_orders_get"];
+        put?: never;
+        /**
+         * Place an order
+         * @description Validates every line against the live menu and assigns the daily order number (FR-3, FR-7). Broadcasts order:new.
+         */
+        post: operations["place_order_api_orders_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/orders/{order_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read one order
+         * @description One order by id: the guest status view and the reconnect refetch (FR-4).
+         */
+        get: operations["read_order_api_orders__order_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/orders/{order_id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Transition an order
+         * @description Applies one legal transition (placed to in_progress, in_progress to completed, placed to completed, placed to cancelled) and broadcasts order:status (FR-5, FR-7).
+         */
+        patch: operations["update_status_api_orders__order_id__status_patch"];
+        trace?: never;
+    };
+    "/api/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Live order events (SSE)
+         * @description Server-Sent Events stream: order:new on placement, order:status on every transition, and a heartbeat every 25 seconds while idle. Payloads are the camelCase event models from the schema.
+         */
+        get: operations["events_api_events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+}
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
@@ -64,30 +169,10 @@ export interface components {
              */
             name: string;
         };
-        /**
-         * HeartbeatEvent
-         * @description SSE keepalive sent every 25 seconds so idle connections and
-         *     proxies keep the stream open.
-         * @example {
-         *       "sentAt": "2026-09-03T15:04:30Z",
-         *       "type": "heartbeat"
-         *     }
-         */
-        HeartbeatEvent: {
-            /**
-             * Type
-             * @description Event discriminator.
-             * @example heartbeat
-             * @constant
-             */
-            type: "heartbeat";
-            /**
-             * Sentat
-             * Format: date-time
-             * @description Heartbeat time, ISO 8601 UTC.
-             * @example 2026-09-03T15:04:30Z
-             */
-            sentAt: string;
+        /** HTTPValidationError */
+        HTTPValidationError: {
+            /** Detail */
+            detail?: components["schemas"]["ValidationError"][];
         };
         /**
          * MenuDocument
@@ -671,6 +756,102 @@ export interface components {
             notes: string | null;
         };
         /**
+         * OrderRules
+         * @description Frozen per-line bounds shared by both surfaces (PRD section 4).
+         * @example {
+         *       "maxQuantity": 10,
+         *       "minQuantity": 1,
+         *       "notesMaxLength": 200
+         *     }
+         */
+        OrderRules: {
+            /**
+             * Notesmaxlength
+             * @description Maximum characters of free text per order line.
+             * @example 200
+             */
+            notesMaxLength: number;
+            /**
+             * Minquantity
+             * @description Minimum units per order line.
+             * @example 1
+             */
+            minQuantity: number;
+            /**
+             * Maxquantity
+             * @description Maximum units per order line.
+             * @example 10
+             */
+            maxQuantity: number;
+        };
+        /**
+         * OrderStatus
+         * @description Lifecycle states from FR-7. Legal transitions: placed to
+         *     in_progress, in_progress to completed, placed to completed,
+         *     placed to cancelled. Everything else is rejected.
+         * @enum {string}
+         */
+        OrderStatus: "placed" | "in_progress" | "completed" | "cancelled";
+        /**
+         * OrderStatusUpdate
+         * @description Request body of PATCH /api/orders/{id}/status. Rejected with
+         *     422 when the transition is illegal (FR-7).
+         * @example {
+         *       "status": "in_progress"
+         *     }
+         */
+        OrderStatusUpdate: {
+            /**
+             * @description Target status; must be reachable from the current one.
+             * @example in_progress
+             */
+            status: components["schemas"]["OrderStatus"];
+        };
+        /**
+         * Temperature
+         * @description Service temperature of a drink, from the nong/da tags.
+         * @enum {string}
+         */
+        Temperature: "hot" | "iced";
+        /** ValidationError */
+        ValidationError: {
+            /** Location */
+            loc: (string | number)[];
+            /** Message */
+            msg: string;
+            /** Error Type */
+            type: string;
+            /** Input */
+            input?: unknown;
+            /** Context */
+            ctx?: Record<string, never>;
+        };
+        /**
+         * HeartbeatEvent
+         * @description SSE keepalive sent every 25 seconds so idle connections and
+         *     proxies keep the stream open.
+         * @example {
+         *       "sentAt": "2026-09-03T15:04:30Z",
+         *       "type": "heartbeat"
+         *     }
+         */
+        HeartbeatEvent: {
+            /**
+             * Type
+             * @description Event discriminator.
+             * @example heartbeat
+             * @constant
+             */
+            type: "heartbeat";
+            /**
+             * Sentat
+             * Format: date-time
+             * @description Heartbeat time, ISO 8601 UTC.
+             * @example 2026-09-03T15:04:30Z
+             */
+            sentAt: string;
+        };
+        /**
          * OrderNewEvent
          * @description SSE payload broadcast when an order is placed; consumed by the
          *     barista surface.
@@ -716,43 +897,6 @@ export interface components {
             order: components["schemas"]["Order"];
         };
         /**
-         * OrderRules
-         * @description Frozen per-line bounds shared by both surfaces (PRD section 4).
-         * @example {
-         *       "maxQuantity": 10,
-         *       "minQuantity": 1,
-         *       "notesMaxLength": 200
-         *     }
-         */
-        OrderRules: {
-            /**
-             * Notesmaxlength
-             * @description Maximum characters of free text per order line.
-             * @example 200
-             */
-            notesMaxLength: number;
-            /**
-             * Minquantity
-             * @description Minimum units per order line.
-             * @example 1
-             */
-            minQuantity: number;
-            /**
-             * Maxquantity
-             * @description Maximum units per order line.
-             * @example 10
-             */
-            maxQuantity: number;
-        };
-        /**
-         * OrderStatus
-         * @description Lifecycle states from FR-7. Legal transitions: placed to
-         *     in_progress, in_progress to completed, placed to completed,
-         *     placed to cancelled. Everything else is rejected.
-         * @enum {string}
-         */
-        OrderStatus: "placed" | "in_progress" | "completed" | "cancelled";
-        /**
          * OrderStatusEvent
          * @description SSE payload broadcast on every status transition; consumed by
          *     both surfaces.
@@ -797,27 +941,6 @@ export interface components {
             /** @description The order in its new state. */
             order: components["schemas"]["Order"];
         };
-        /**
-         * OrderStatusUpdate
-         * @description Request body of PATCH /api/orders/{id}/status. Rejected with
-         *     422 when the transition is illegal (FR-7).
-         * @example {
-         *       "status": "in_progress"
-         *     }
-         */
-        OrderStatusUpdate: {
-            /**
-             * @description Target status; must be reachable from the current one.
-             * @example in_progress
-             */
-            status: components["schemas"]["OrderStatus"];
-        };
-        /**
-         * Temperature
-         * @description Service temperature of a drink, from the nong/da tags.
-         * @enum {string}
-         */
-        Temperature: "hot" | "iced";
     };
     responses: never;
     parameters: never;
@@ -826,4 +949,193 @@ export interface components {
     pathItems: never;
 }
 export type $defs = Record<string, never>;
-export type operations = Record<string, never>;
+export interface operations {
+    read_menu_api_menu_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MenuDocument"];
+                };
+            };
+        };
+    };
+    list_orders_api_orders_get: {
+        parameters: {
+            query?: {
+                status?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Order"][];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    place_order_api_orders_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrderCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Order"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    read_order_api_orders__order_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Order"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_status_api_orders__order_id__status_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrderStatusUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Order"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    events_api_events_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+}

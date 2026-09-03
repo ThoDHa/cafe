@@ -5,7 +5,244 @@
     "description": "Ordering API for the Cafe Ông Thọ home cafe. Guests browse the menu, customize drinks within each item's rules, and follow their order's status live; the barista surface works the queue and moves orders through placed, in_progress, completed, or cancelled. Liveness arrives over Server-Sent Events at /api/events. The menu is the five drink sections of the recipes (Cà Phê, Mát-cha, Trà, Giải Khát, Kem) with the customization model frozen for v1: temperature, milk, sweetener type, sweetness level, cold foam on iced only, notes up to 200 characters, quantity 1 to 10 per line.",
     "version": "0.1.0"
   },
-  "paths": {},
+  "paths": {
+    "/api/menu": {
+      "get": {
+        "summary": "Read the menu",
+        "description": "The full validated menu: five categories, modifier groups, and every orderable drink with its customization allowance (FR-1).",
+        "operationId": "read_menu_api_menu_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MenuDocument"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orders": {
+      "post": {
+        "summary": "Place an order",
+        "description": "Validates every line against the live menu and assigns the daily order number (FR-3, FR-7). Broadcasts order:new.",
+        "operationId": "place_order_api_orders_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrderCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Order"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      },
+      "get": {
+        "summary": "List orders",
+        "description": "Newest first. Filter by status=active (placed plus in_progress) for the barista board, or by a single lifecycle status (FR-5).",
+        "operationId": "list_orders_api_orders_get",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Order"
+                  },
+                  "title": "Response List Orders Api Orders Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/orders/{order_id}": {
+      "get": {
+        "summary": "Read one order",
+        "description": "One order by id: the guest status view and the reconnect refetch (FR-4).",
+        "operationId": "read_order_api_orders__order_id__get",
+        "parameters": [
+          {
+            "name": "order_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Order Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Order"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orders/{order_id}/status": {
+      "patch": {
+        "summary": "Transition an order",
+        "description": "Applies one legal transition (placed to in_progress, in_progress to completed, placed to completed, placed to cancelled) and broadcasts order:status (FR-5, FR-7).",
+        "operationId": "update_status_api_orders__order_id__status_patch",
+        "parameters": [
+          {
+            "name": "order_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Order Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrderStatusUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Order"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/events": {
+      "get": {
+        "summary": "Live order events (SSE)",
+        "description": "Server-Sent Events stream: order:new on placement, order:status on every transition, and a heartbeat every 25 seconds while idle. Payloads are the camelCase event models from the schema.",
+        "operationId": "events_api_events_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
   "components": {
     "schemas": {
       "ApiError": {
@@ -87,38 +324,18 @@
         "title": "Category",
         "type": "object"
       },
-      "HeartbeatEvent": {
-        "description": "SSE keepalive sent every 25 seconds so idle connections and\nproxies keep the stream open.",
-        "example": {
-          "sentAt": "2026-09-03T15:04:30Z",
-          "type": "heartbeat"
-        },
+      "HTTPValidationError": {
         "properties": {
-          "type": {
-            "const": "heartbeat",
-            "description": "Event discriminator.",
-            "examples": [
-              "heartbeat"
-            ],
-            "title": "Type",
-            "type": "string"
-          },
-          "sentAt": {
-            "description": "Heartbeat time, ISO 8601 UTC.",
-            "examples": [
-              "2026-09-03T15:04:30Z"
-            ],
-            "format": "date-time",
-            "title": "Sentat",
-            "type": "string"
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
           }
         },
-        "required": [
-          "type",
-          "sentAt"
-        ],
-        "title": "HeartbeatEvent",
-        "type": "object"
+        "type": "object",
+        "title": "HTTPValidationError"
       },
       "MenuDocument": {
         "description": "The full validated menu served at GET /api/menu.",
@@ -1024,6 +1241,160 @@
         "title": "OrderLineView",
         "type": "object"
       },
+      "OrderRules": {
+        "description": "Frozen per-line bounds shared by both surfaces (PRD section 4).",
+        "example": {
+          "maxQuantity": 10,
+          "minQuantity": 1,
+          "notesMaxLength": 200
+        },
+        "properties": {
+          "notesMaxLength": {
+            "description": "Maximum characters of free text per order line.",
+            "examples": [
+              200
+            ],
+            "title": "Notesmaxlength",
+            "type": "integer"
+          },
+          "minQuantity": {
+            "description": "Minimum units per order line.",
+            "examples": [
+              1
+            ],
+            "title": "Minquantity",
+            "type": "integer"
+          },
+          "maxQuantity": {
+            "description": "Maximum units per order line.",
+            "examples": [
+              10
+            ],
+            "title": "Maxquantity",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "notesMaxLength",
+          "minQuantity",
+          "maxQuantity"
+        ],
+        "title": "OrderRules",
+        "type": "object"
+      },
+      "OrderStatus": {
+        "description": "Lifecycle states from FR-7. Legal transitions: placed to\nin_progress, in_progress to completed, placed to completed,\nplaced to cancelled. Everything else is rejected.",
+        "enum": [
+          "placed",
+          "in_progress",
+          "completed",
+          "cancelled"
+        ],
+        "title": "OrderStatus",
+        "type": "string"
+      },
+      "OrderStatusUpdate": {
+        "description": "Request body of PATCH /api/orders/{id}/status. Rejected with\n422 when the transition is illegal (FR-7).",
+        "example": {
+          "status": "in_progress"
+        },
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/OrderStatus",
+            "description": "Target status; must be reachable from the current one.",
+            "examples": [
+              "in_progress"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "OrderStatusUpdate",
+        "type": "object"
+      },
+      "Temperature": {
+        "description": "Service temperature of a drink, from the nong/da tags.",
+        "enum": [
+          "hot",
+          "iced"
+        ],
+        "title": "Temperature",
+        "type": "string"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "HeartbeatEvent": {
+        "description": "SSE keepalive sent every 25 seconds so idle connections and\nproxies keep the stream open.",
+        "example": {
+          "sentAt": "2026-09-03T15:04:30Z",
+          "type": "heartbeat"
+        },
+        "properties": {
+          "type": {
+            "const": "heartbeat",
+            "description": "Event discriminator.",
+            "examples": [
+              "heartbeat"
+            ],
+            "title": "Type",
+            "type": "string"
+          },
+          "sentAt": {
+            "description": "Heartbeat time, ISO 8601 UTC.",
+            "examples": [
+              "2026-09-03T15:04:30Z"
+            ],
+            "format": "date-time",
+            "title": "Sentat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "sentAt"
+        ],
+        "title": "HeartbeatEvent",
+        "type": "object"
+      },
       "OrderNewEvent": {
         "description": "SSE payload broadcast when an order is placed; consumed by the\nbarista surface.",
         "example": {
@@ -1077,58 +1448,6 @@
         "title": "OrderNewEvent",
         "type": "object"
       },
-      "OrderRules": {
-        "description": "Frozen per-line bounds shared by both surfaces (PRD section 4).",
-        "example": {
-          "maxQuantity": 10,
-          "minQuantity": 1,
-          "notesMaxLength": 200
-        },
-        "properties": {
-          "notesMaxLength": {
-            "description": "Maximum characters of free text per order line.",
-            "examples": [
-              200
-            ],
-            "title": "Notesmaxlength",
-            "type": "integer"
-          },
-          "minQuantity": {
-            "description": "Minimum units per order line.",
-            "examples": [
-              1
-            ],
-            "title": "Minquantity",
-            "type": "integer"
-          },
-          "maxQuantity": {
-            "description": "Maximum units per order line.",
-            "examples": [
-              10
-            ],
-            "title": "Maxquantity",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "notesMaxLength",
-          "minQuantity",
-          "maxQuantity"
-        ],
-        "title": "OrderRules",
-        "type": "object"
-      },
-      "OrderStatus": {
-        "description": "Lifecycle states from FR-7. Legal transitions: placed to\nin_progress, in_progress to completed, placed to completed,\nplaced to cancelled. Everything else is rejected.",
-        "enum": [
-          "placed",
-          "in_progress",
-          "completed",
-          "cancelled"
-        ],
-        "title": "OrderStatus",
-        "type": "string"
-      },
       "OrderStatusEvent": {
         "description": "SSE payload broadcast on every status transition; consumed by\nboth surfaces.",
         "example": {
@@ -1181,35 +1500,6 @@
         ],
         "title": "OrderStatusEvent",
         "type": "object"
-      },
-      "OrderStatusUpdate": {
-        "description": "Request body of PATCH /api/orders/{id}/status. Rejected with\n422 when the transition is illegal (FR-7).",
-        "example": {
-          "status": "in_progress"
-        },
-        "properties": {
-          "status": {
-            "$ref": "#/components/schemas/OrderStatus",
-            "description": "Target status; must be reachable from the current one.",
-            "examples": [
-              "in_progress"
-            ]
-          }
-        },
-        "required": [
-          "status"
-        ],
-        "title": "OrderStatusUpdate",
-        "type": "object"
-      },
-      "Temperature": {
-        "description": "Service temperature of a drink, from the nong/da tags.",
-        "enum": [
-          "hot",
-          "iced"
-        ],
-        "title": "Temperature",
-        "type": "string"
       }
     }
   }
