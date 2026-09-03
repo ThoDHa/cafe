@@ -7,6 +7,7 @@ so /docs, /redoc, and the TypeScript generation pipeline work today.
 
 from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
+from pydantic.json_schema import models_json_schema
 
 from app import schemas
 
@@ -28,13 +29,14 @@ app = FastAPI(title=API_TITLE, description=API_DESCRIPTION, version=API_VERSION)
 
 
 def _include_contract_models(openapi_schema: dict) -> dict:
+    _, definitions = models_json_schema(
+        [(model, "validation") for model in schemas.CONTRACT_MODELS],
+        ref_template="#/components/schemas/{model}",
+    )
     schemas_by_name = openapi_schema.setdefault("components", {}).setdefault(
         "schemas", {}
     )
-    for model in schemas.CONTRACT_MODELS:
-        schemas_by_name[model.__name__] = model.model_json_schema(
-            ref_template="#/components/schemas/{model}"
-        )
+    schemas_by_name.update(definitions["$defs"])
     return openapi_schema
 
 

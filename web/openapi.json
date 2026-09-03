@@ -1,0 +1,1216 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Cafe Ông Thọ ordering API",
+    "description": "Ordering API for the Cafe Ông Thọ home cafe. Guests browse the menu, customize drinks within each item's rules, and follow their order's status live; the barista surface works the queue and moves orders through placed, in_progress, completed, or cancelled. Liveness arrives over Server-Sent Events at /api/events. The menu is the five drink sections of the recipes (Cà Phê, Mát-cha, Trà, Giải Khát, Kem) with the customization model frozen for v1: temperature, milk, sweetener type, sweetness level, cold foam on iced only, notes up to 200 characters, quantity 1 to 10 per line.",
+    "version": "0.1.0"
+  },
+  "paths": {},
+  "components": {
+    "schemas": {
+      "ApiError": {
+        "description": "Error shape for 422 validation and transition rejections and\n404 unknown orders: a specific message plus per-line detail\nstrings (FR-7).",
+        "example": {
+          "details": [
+            "item tan-cha is not on the menu"
+          ],
+          "error": "order line 1 is invalid"
+        },
+        "properties": {
+          "error": {
+            "description": "What went wrong, in one sentence.",
+            "examples": [
+              "order line 1 is invalid"
+            ],
+            "title": "Error",
+            "type": "string"
+          },
+          "details": {
+            "description": "Specific per-problem messages.",
+            "examples": [
+              [
+                "item tan-cha is not on the menu"
+              ]
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Details",
+            "type": "array"
+          }
+        },
+        "required": [
+          "error",
+          "details"
+        ],
+        "title": "ApiError",
+        "type": "object"
+      },
+      "Category": {
+        "description": "One of the five drink sections of the recipes menu.",
+        "example": {
+          "id": "ca-phe",
+          "name": "Coffee",
+          "nameVi": "Cà Phê"
+        },
+        "properties": {
+          "id": {
+            "description": "Stable category slug, e.g. ca-phe.",
+            "examples": [
+              "ca-phe"
+            ],
+            "title": "Id",
+            "type": "string"
+          },
+          "nameVi": {
+            "description": "Section heading as printed on the recipes menu.",
+            "examples": [
+              "Cà Phê"
+            ],
+            "title": "Namevi",
+            "type": "string"
+          },
+          "name": {
+            "description": "English section label.",
+            "examples": [
+              "Coffee"
+            ],
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "nameVi",
+          "name"
+        ],
+        "title": "Category",
+        "type": "object"
+      },
+      "HeartbeatEvent": {
+        "description": "SSE keepalive sent every 25 seconds so idle connections and\nproxies keep the stream open.",
+        "example": {
+          "sentAt": "2026-09-03T15:04:30Z",
+          "type": "heartbeat"
+        },
+        "properties": {
+          "type": {
+            "const": "heartbeat",
+            "description": "Event discriminator.",
+            "examples": [
+              "heartbeat"
+            ],
+            "title": "Type",
+            "type": "string"
+          },
+          "sentAt": {
+            "description": "Heartbeat time, ISO 8601 UTC.",
+            "examples": [
+              "2026-09-03T15:04:30Z"
+            ],
+            "format": "date-time",
+            "title": "Sentat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "sentAt"
+        ],
+        "title": "HeartbeatEvent",
+        "type": "object"
+      },
+      "MenuDocument": {
+        "description": "The full validated menu served at GET /api/menu.",
+        "example": {
+          "categories": [
+            {
+              "id": "ca-phe",
+              "name": "Coffee",
+              "nameVi": "Cà Phê"
+            }
+          ],
+          "items": [
+            {
+              "categoryId": "mat-cha",
+              "description": "Koicha whisked thick, your sweetener and milk of choice.",
+              "id": "matcha-sua",
+              "imagePath": null,
+              "modifierGroupIds": [
+                "milk-matcha-latte",
+                "sweetener-matcha",
+                "sweetness",
+                "cold-foam"
+              ],
+              "name": "Matcha Latte",
+              "nameVi": "Matcha Sữa",
+              "temperatures": [
+                "hot",
+                "iced"
+              ]
+            }
+          ],
+          "modifierGroups": [
+            {
+              "defaultByTemperature": {
+                "hot": "whole-milk",
+                "iced": "oat-milk"
+              },
+              "dimension": "milk",
+              "id": "milk-matcha-latte",
+              "name": "Milk",
+              "options": [
+                {
+                  "id": "whole-milk",
+                  "name": "Whole milk",
+                  "temperatures": [
+                    "hot"
+                  ]
+                },
+                {
+                  "id": "oat-milk",
+                  "name": "Oat milk",
+                  "temperatures": [
+                    "hot",
+                    "iced"
+                  ]
+                }
+              ],
+              "required": true
+            }
+          ],
+          "orderRules": {
+            "maxQuantity": 10,
+            "minQuantity": 1,
+            "notesMaxLength": 200
+          },
+          "version": 1
+        },
+        "properties": {
+          "version": {
+            "description": "Menu document format version.",
+            "examples": [
+              1
+            ],
+            "title": "Version",
+            "type": "integer"
+          },
+          "orderRules": {
+            "$ref": "#/components/schemas/OrderRules",
+            "description": "Frozen per-line bounds."
+          },
+          "categories": {
+            "description": "The five drink sections in display order.",
+            "items": {
+              "$ref": "#/components/schemas/Category"
+            },
+            "title": "Categories",
+            "type": "array"
+          },
+          "modifierGroups": {
+            "description": "Shared customization groups referenced by items.",
+            "items": {
+              "$ref": "#/components/schemas/ModifierGroup"
+            },
+            "title": "Modifiergroups",
+            "type": "array"
+          },
+          "items": {
+            "description": "Every orderable drink.",
+            "items": {
+              "$ref": "#/components/schemas/MenuItem"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "version",
+          "orderRules",
+          "categories",
+          "modifierGroups",
+          "items"
+        ],
+        "title": "MenuDocument",
+        "type": "object"
+      },
+      "MenuItem": {
+        "description": "One orderable drink with its customization allowance.",
+        "example": {
+          "categoryId": "mat-cha",
+          "description": "Koicha whisked thick, your sweetener and milk of choice.",
+          "id": "matcha-sua",
+          "imagePath": null,
+          "modifierGroupIds": [
+            "milk-matcha-latte",
+            "sweetener-matcha",
+            "sweetness",
+            "cold-foam"
+          ],
+          "name": "Matcha Latte",
+          "nameVi": "Matcha Sữa",
+          "temperatures": [
+            "hot",
+            "iced"
+          ]
+        },
+        "properties": {
+          "id": {
+            "description": "Stable item slug, e.g. matcha-sua.",
+            "examples": [
+              "matcha-sua"
+            ],
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "description": "English name.",
+            "examples": [
+              "Matcha Latte"
+            ],
+            "title": "Name",
+            "type": "string"
+          },
+          "nameVi": {
+            "description": "Vietnamese name as printed on the recipes menu.",
+            "examples": [
+              "Matcha Sữa"
+            ],
+            "title": "Namevi",
+            "type": "string"
+          },
+          "description": {
+            "description": "English description from the recipes menu.",
+            "examples": [
+              "Koicha whisked thick, your sweetener and milk of choice."
+            ],
+            "title": "Description",
+            "type": "string"
+          },
+          "categoryId": {
+            "description": "Owning category slug.",
+            "examples": [
+              "mat-cha"
+            ],
+            "title": "Categoryid",
+            "type": "string"
+          },
+          "temperatures": {
+            "description": "Offered service temperatures, at least one.",
+            "examples": [
+              [
+                "hot",
+                "iced"
+              ]
+            ],
+            "items": {
+              "$ref": "#/components/schemas/Temperature"
+            },
+            "title": "Temperatures",
+            "type": "array"
+          },
+          "modifierGroupIds": {
+            "description": "Customization groups allowed on this item, per cafe.md.",
+            "examples": [
+              [
+                "milk-matcha-latte",
+                "sweetener-matcha",
+                "sweetness",
+                "cold-foam"
+              ]
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Modifiergroupids",
+            "type": "array"
+          },
+          "imagePath": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional photo served at /images/menu/<itemId>.<ext>; absent means the on-brand placeholder.",
+            "examples": [
+              "/images/menu/matcha-sua.jpg"
+            ],
+            "title": "Imagepath"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "nameVi",
+          "description",
+          "categoryId",
+          "temperatures",
+          "modifierGroupIds"
+        ],
+        "title": "MenuItem",
+        "type": "object"
+      },
+      "ModifierDimension": {
+        "description": "Which frozen customization dimension a modifier group expresses.",
+        "enum": [
+          "milk",
+          "sweetener_type",
+          "sweetness_level",
+          "cold_foam"
+        ],
+        "title": "ModifierDimension",
+        "type": "string"
+      },
+      "ModifierGroup": {
+        "description": "A customization group allowed on one or more menu items.",
+        "example": {
+          "defaultByTemperature": {
+            "hot": "whole-milk",
+            "iced": "oat-milk"
+          },
+          "dimension": "milk",
+          "id": "milk-matcha-latte",
+          "name": "Milk",
+          "options": [
+            {
+              "id": "whole-milk",
+              "name": "Whole milk",
+              "temperatures": [
+                "hot"
+              ]
+            },
+            {
+              "id": "oat-milk",
+              "name": "Oat milk",
+              "temperatures": [
+                "hot",
+                "iced"
+              ]
+            }
+          ],
+          "required": true
+        },
+        "properties": {
+          "id": {
+            "description": "Stable group slug, e.g. milk-matcha-latte.",
+            "examples": [
+              "milk-matcha-latte"
+            ],
+            "title": "Id",
+            "type": "string"
+          },
+          "dimension": {
+            "$ref": "#/components/schemas/ModifierDimension",
+            "description": "Which customization dimension this group expresses."
+          },
+          "name": {
+            "description": "Display name of the group.",
+            "examples": [
+              "Milk"
+            ],
+            "title": "Name",
+            "type": "string"
+          },
+          "required": {
+            "description": "True when the guest must make exactly one selection.",
+            "examples": [
+              true
+            ],
+            "title": "Required",
+            "type": "boolean"
+          },
+          "options": {
+            "description": "Selectable options, each scoped to temperatures.",
+            "items": {
+              "$ref": "#/components/schemas/ModifierOption"
+            },
+            "title": "Options",
+            "type": "array"
+          },
+          "defaultOptionId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Default selection when options do not vary by temperature.",
+            "examples": [
+              "condensed-milk"
+            ],
+            "title": "Defaultoptionid"
+          },
+          "defaultByTemperature": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Default selection per temperature when options vary by temperature, e.g. Matcha Sữa hot defaults to whole milk.",
+            "examples": [
+              {
+                "hot": "whole-milk",
+                "iced": "milk-plus-cream"
+              }
+            ],
+            "title": "Defaultbytemperature"
+          }
+        },
+        "required": [
+          "id",
+          "dimension",
+          "name",
+          "required",
+          "options"
+        ],
+        "title": "ModifierGroup",
+        "type": "object"
+      },
+      "ModifierOption": {
+        "description": "One selectable option within a modifier group.",
+        "example": {
+          "id": "oat-milk",
+          "name": "Oat milk",
+          "temperatures": [
+            "hot",
+            "iced"
+          ]
+        },
+        "properties": {
+          "id": {
+            "description": "Stable option slug, e.g. oat-milk.",
+            "examples": [
+              "oat-milk"
+            ],
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "description": "Display name spelled out to guests and baristas.",
+            "examples": [
+              "Oat milk"
+            ],
+            "title": "Name",
+            "type": "string"
+          },
+          "temperatures": {
+            "description": "Service temperatures at which this option is offered.",
+            "examples": [
+              [
+                "hot",
+                "iced"
+              ]
+            ],
+            "items": {
+              "$ref": "#/components/schemas/Temperature"
+            },
+            "title": "Temperatures",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "temperatures"
+        ],
+        "title": "ModifierOption",
+        "type": "object"
+      },
+      "Order": {
+        "description": "An order as served by every order endpoint and both event\npayloads. Status changes live here; the daily number is short\nand callable (FR-3).",
+        "example": {
+          "createdAt": "2026-09-03T15:04:05Z",
+          "customerName": "Lan",
+          "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+          "items": [
+            {
+              "coldFoamId": "foam-salted",
+              "coldFoamName": "Salted Cold Foam",
+              "itemId": "matcha-sua",
+              "itemName": "Matcha Latte",
+              "itemNameVi": "Matcha Sữa",
+              "milkOptionId": "oat-milk",
+              "milkOptionName": "Oat milk",
+              "notes": null,
+              "quantity": 2,
+              "sweetenerTypeId": "condensed-milk",
+              "sweetenerTypeName": "Condensed milk",
+              "sweetnessLevelId": "50",
+              "sweetnessLevelName": "50%",
+              "temperature": "iced"
+            }
+          ],
+          "orderNumber": 7,
+          "status": "placed",
+          "updatedAt": "2026-09-03T15:04:05Z"
+        },
+        "properties": {
+          "id": {
+            "description": "Order id, stable across its lifetime.",
+            "examples": [
+              "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+            ],
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "orderNumber": {
+            "description": "Daily order number, reset each day.",
+            "examples": [
+              7
+            ],
+            "minimum": 1,
+            "title": "Ordernumber",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/OrderStatus",
+            "description": "Current lifecycle status."
+          },
+          "customerName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Guest-given name, if any.",
+            "examples": [
+              "Lan"
+            ],
+            "title": "Customername"
+          },
+          "items": {
+            "description": "Line snapshots with resolved names.",
+            "items": {
+              "$ref": "#/components/schemas/OrderLineView"
+            },
+            "minItems": 1,
+            "title": "Items",
+            "type": "array"
+          },
+          "createdAt": {
+            "description": "Placement time, ISO 8601 UTC.",
+            "examples": [
+              "2026-09-03T15:04:05Z"
+            ],
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "updatedAt": {
+            "description": "Last transition time, ISO 8601 UTC.",
+            "examples": [
+              "2026-09-03T15:09:11Z"
+            ],
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "orderNumber",
+          "status",
+          "items",
+          "createdAt",
+          "updatedAt"
+        ],
+        "title": "Order",
+        "type": "object"
+      },
+      "OrderCreate": {
+        "description": "Request body of POST /api/orders.",
+        "example": {
+          "customerName": "Lan",
+          "items": [
+            {
+              "coldFoamId": "foam-salted",
+              "itemId": "matcha-sua",
+              "milkOptionId": "oat-milk",
+              "notes": "extra hot, please",
+              "quantity": 2,
+              "sweetenerTypeId": "condensed-milk",
+              "sweetnessLevelId": "50",
+              "temperature": "iced"
+            }
+          ]
+        },
+        "properties": {
+          "customerName": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional name shown to the barista on the queue card.",
+            "examples": [
+              "Lan"
+            ],
+            "title": "Customername"
+          },
+          "items": {
+            "description": "Order lines; at least one.",
+            "items": {
+              "$ref": "#/components/schemas/OrderLine"
+            },
+            "minItems": 1,
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "OrderCreate",
+        "type": "object"
+      },
+      "OrderLine": {
+        "description": "One drink line in a placed order: the full selection snapshot\n(FR-2). Validated against the live menu: the item must exist,\nthe temperature must be offered, and every selection must belong\nto a group the item allows at that temperature.",
+        "example": {
+          "coldFoamId": "foam-salted",
+          "itemId": "matcha-sua",
+          "milkOptionId": "oat-milk",
+          "notes": "extra hot, please",
+          "quantity": 2,
+          "sweetenerTypeId": "condensed-milk",
+          "sweetnessLevelId": "50",
+          "temperature": "iced"
+        },
+        "properties": {
+          "itemId": {
+            "description": "Menu item id.",
+            "examples": [
+              "matcha-sua"
+            ],
+            "title": "Itemid",
+            "type": "string"
+          },
+          "temperature": {
+            "$ref": "#/components/schemas/Temperature",
+            "description": "Chosen service temperature; must be offered by the item."
+          },
+          "quantity": {
+            "description": "Units of this line, 1 to 10.",
+            "examples": [
+              2
+            ],
+            "maximum": 10,
+            "minimum": 1,
+            "title": "Quantity",
+            "type": "integer"
+          },
+          "milkOptionId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Chosen milk option; must belong to the item's milk group at the chosen temperature.",
+            "examples": [
+              "oat-milk"
+            ],
+            "title": "Milkoptionid"
+          },
+          "sweetenerTypeId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Chosen sweetener; must belong to the item's sweetener group.",
+            "examples": [
+              "condensed-milk"
+            ],
+            "title": "Sweetenertypeid"
+          },
+          "sweetnessLevelId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Chosen sweetness step; one of full, 75, 50, 25, none.",
+            "examples": [
+              "50"
+            ],
+            "title": "Sweetnesslevelid"
+          },
+          "coldFoamId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Chosen cold foam build; allowed only when temperature is iced.",
+            "examples": [
+              "foam-salted"
+            ],
+            "title": "Coldfoamid"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Free text for the barista, at most 200 characters.",
+            "examples": [
+              "extra hot, please"
+            ],
+            "title": "Notes"
+          }
+        },
+        "required": [
+          "itemId",
+          "temperature",
+          "quantity"
+        ],
+        "title": "OrderLine",
+        "type": "object"
+      },
+      "OrderLineView": {
+        "description": "An order line as served in responses, with every selection\nresolved to its display name so both surfaces can spell out\nmodifiers without a menu lookup (FR-5).",
+        "example": {
+          "coldFoamId": "foam-salted",
+          "coldFoamName": "Salted Cold Foam",
+          "itemId": "matcha-sua",
+          "itemName": "Matcha Latte",
+          "itemNameVi": "Matcha Sữa",
+          "milkOptionId": "oat-milk",
+          "milkOptionName": "Oat milk",
+          "notes": null,
+          "quantity": 2,
+          "sweetenerTypeId": "condensed-milk",
+          "sweetenerTypeName": "Condensed milk",
+          "sweetnessLevelId": "50",
+          "sweetnessLevelName": "50%",
+          "temperature": "iced"
+        },
+        "properties": {
+          "itemId": {
+            "description": "Menu item id.",
+            "examples": [
+              "matcha-sua"
+            ],
+            "title": "Itemid",
+            "type": "string"
+          },
+          "itemName": {
+            "description": "English item name.",
+            "examples": [
+              "Matcha Latte"
+            ],
+            "title": "Itemname",
+            "type": "string"
+          },
+          "itemNameVi": {
+            "description": "Vietnamese item name.",
+            "examples": [
+              "Matcha Sữa"
+            ],
+            "title": "Itemnamevi",
+            "type": "string"
+          },
+          "temperature": {
+            "$ref": "#/components/schemas/Temperature",
+            "description": "Chosen service temperature."
+          },
+          "quantity": {
+            "description": "Units of this line, 1 to 10.",
+            "examples": [
+              2
+            ],
+            "maximum": 10,
+            "minimum": 1,
+            "title": "Quantity",
+            "type": "integer"
+          },
+          "milkOptionId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Chosen milk option id.",
+            "examples": [
+              "oat-milk"
+            ],
+            "title": "Milkoptionid"
+          },
+          "milkOptionName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Chosen milk, spelled out.",
+            "examples": [
+              "Oat milk"
+            ],
+            "title": "Milkoptionname"
+          },
+          "sweetenerTypeId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Chosen sweetener id.",
+            "examples": [
+              "condensed-milk"
+            ],
+            "title": "Sweetenertypeid"
+          },
+          "sweetenerTypeName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Chosen sweetener, spelled out.",
+            "examples": [
+              "Condensed milk"
+            ],
+            "title": "Sweetenertypename"
+          },
+          "sweetnessLevelId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Chosen sweetness step id.",
+            "examples": [
+              "50"
+            ],
+            "title": "Sweetnesslevelid"
+          },
+          "sweetnessLevelName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Chosen sweetness, spelled out.",
+            "examples": [
+              "50%"
+            ],
+            "title": "Sweetnesslevelname"
+          },
+          "coldFoamId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Chosen cold foam id.",
+            "examples": [
+              "foam-salted"
+            ],
+            "title": "Coldfoamid"
+          },
+          "coldFoamName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Chosen cold foam, spelled out.",
+            "examples": [
+              "Salted Cold Foam"
+            ],
+            "title": "Coldfoamname"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Free text for the barista.",
+            "examples": [
+              "extra hot"
+            ],
+            "title": "Notes"
+          }
+        },
+        "required": [
+          "itemId",
+          "itemName",
+          "itemNameVi",
+          "temperature",
+          "quantity"
+        ],
+        "title": "OrderLineView",
+        "type": "object"
+      },
+      "OrderNewEvent": {
+        "description": "SSE payload broadcast when an order is placed; consumed by the\nbarista surface.",
+        "example": {
+          "order": {
+            "createdAt": "2026-09-03T15:04:05Z",
+            "customerName": "Lan",
+            "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+            "items": [
+              {
+                "coldFoamId": "foam-salted",
+                "coldFoamName": "Salted Cold Foam",
+                "itemId": "matcha-sua",
+                "itemName": "Matcha Latte",
+                "itemNameVi": "Matcha Sữa",
+                "milkOptionId": "oat-milk",
+                "milkOptionName": "Oat milk",
+                "notes": null,
+                "quantity": 2,
+                "sweetenerTypeId": "condensed-milk",
+                "sweetenerTypeName": "Condensed milk",
+                "sweetnessLevelId": "50",
+                "sweetnessLevelName": "50%",
+                "temperature": "iced"
+              }
+            ],
+            "orderNumber": 7,
+            "status": "placed",
+            "updatedAt": "2026-09-03T15:04:05Z"
+          },
+          "type": "order:new"
+        },
+        "properties": {
+          "type": {
+            "const": "order:new",
+            "description": "Event discriminator.",
+            "examples": [
+              "order:new"
+            ],
+            "title": "Type",
+            "type": "string"
+          },
+          "order": {
+            "$ref": "#/components/schemas/Order",
+            "description": "The freshly placed order."
+          }
+        },
+        "required": [
+          "type",
+          "order"
+        ],
+        "title": "OrderNewEvent",
+        "type": "object"
+      },
+      "OrderRules": {
+        "description": "Frozen per-line bounds shared by both surfaces (PRD section 4).",
+        "example": {
+          "maxQuantity": 10,
+          "minQuantity": 1,
+          "notesMaxLength": 200
+        },
+        "properties": {
+          "notesMaxLength": {
+            "description": "Maximum characters of free text per order line.",
+            "examples": [
+              200
+            ],
+            "title": "Notesmaxlength",
+            "type": "integer"
+          },
+          "minQuantity": {
+            "description": "Minimum units per order line.",
+            "examples": [
+              1
+            ],
+            "title": "Minquantity",
+            "type": "integer"
+          },
+          "maxQuantity": {
+            "description": "Maximum units per order line.",
+            "examples": [
+              10
+            ],
+            "title": "Maxquantity",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "notesMaxLength",
+          "minQuantity",
+          "maxQuantity"
+        ],
+        "title": "OrderRules",
+        "type": "object"
+      },
+      "OrderStatus": {
+        "description": "Lifecycle states from FR-7. Legal transitions: placed to\nin_progress, in_progress to completed, placed to completed,\nplaced to cancelled. Everything else is rejected.",
+        "enum": [
+          "placed",
+          "in_progress",
+          "completed",
+          "cancelled"
+        ],
+        "title": "OrderStatus",
+        "type": "string"
+      },
+      "OrderStatusEvent": {
+        "description": "SSE payload broadcast on every status transition; consumed by\nboth surfaces.",
+        "example": {
+          "order": {
+            "createdAt": "2026-09-03T15:04:05Z",
+            "customerName": "Lan",
+            "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+            "items": [
+              {
+                "coldFoamId": "foam-salted",
+                "coldFoamName": "Salted Cold Foam",
+                "itemId": "matcha-sua",
+                "itemName": "Matcha Latte",
+                "itemNameVi": "Matcha Sữa",
+                "milkOptionId": "oat-milk",
+                "milkOptionName": "Oat milk",
+                "notes": null,
+                "quantity": 2,
+                "sweetenerTypeId": "condensed-milk",
+                "sweetenerTypeName": "Condensed milk",
+                "sweetnessLevelId": "50",
+                "sweetnessLevelName": "50%",
+                "temperature": "iced"
+              }
+            ],
+            "orderNumber": 7,
+            "status": "in_progress",
+            "updatedAt": "2026-09-03T15:09:11Z"
+          },
+          "type": "order:status"
+        },
+        "properties": {
+          "type": {
+            "const": "order:status",
+            "description": "Event discriminator.",
+            "examples": [
+              "order:status"
+            ],
+            "title": "Type",
+            "type": "string"
+          },
+          "order": {
+            "$ref": "#/components/schemas/Order",
+            "description": "The order in its new state."
+          }
+        },
+        "required": [
+          "type",
+          "order"
+        ],
+        "title": "OrderStatusEvent",
+        "type": "object"
+      },
+      "OrderStatusUpdate": {
+        "description": "Request body of PATCH /api/orders/{id}/status. Rejected with\n422 when the transition is illegal (FR-7).",
+        "example": {
+          "status": "in_progress"
+        },
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/OrderStatus",
+            "description": "Target status; must be reachable from the current one.",
+            "examples": [
+              "in_progress"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "OrderStatusUpdate",
+        "type": "object"
+      },
+      "Temperature": {
+        "description": "Service temperature of a drink, from the nong/da tags.",
+        "enum": [
+          "hot",
+          "iced"
+        ],
+        "title": "Temperature",
+        "type": "string"
+      }
+    }
+  }
+}
