@@ -1,0 +1,230 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ThoDHa/cafe/menu/menu.schema.json",
+  "title": "Cafe Ong Tho menu",
+  "description": "The orderable menu extracted from the recipes repository. Encodes the customization model frozen for v1: temperature per item, modifier groups for milk (options may vary by temperature), sweetener type, the standard sweetness scale, and cold foam restricted to iced service. Notes and quantity bounds live in orderRules and are enforced again on every order line by the API contract.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "orderRules", "categories", "modifierGroups", "items"],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Menu document format version, bumped on breaking shape changes."
+    },
+    "orderRules": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["notesMaxLength", "minQuantity", "maxQuantity"],
+      "description": "Frozen per-order-line bounds shared by both surfaces.",
+      "properties": {
+        "notesMaxLength": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 200,
+          "description": "Free-text notes cap per order line."
+        },
+        "minQuantity": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Minimum units per order line."
+        },
+        "maxQuantity": {
+          "type": "integer",
+          "maximum": 10,
+          "description": "Maximum units per order line."
+        }
+      }
+    },
+    "categories": {
+      "type": "array",
+      "minItems": 1,
+      "description": "The five drink sections of the recipes menu, in display order.",
+      "items": { "$ref": "#/$defs/category" }
+    },
+    "modifierGroups": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Shared customization groups referenced by items. Per-drink rules come from cafe.md.",
+      "items": { "$ref": "#/$defs/modifierGroup" }
+    },
+    "items": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Every orderable drink across the five sections.",
+      "items": { "$ref": "#/$defs/menuItem" }
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "description": "ASCII slug used across menu.json, API payloads, and asset filenames."
+    },
+    "temperature": {
+      "enum": ["hot", "iced"],
+      "description": "Service temperature. Derived from the nong/da tags of the recipes menu."
+    },
+    "category": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "nameVi", "name"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "nameVi": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Section heading as printed on the recipes menu."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "English section label from the recipes menu."
+        }
+      }
+    },
+    "modifierOption": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "temperatures"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Display name spelled out to guests and baristas."
+        },
+        "temperatures": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/temperature" },
+          "description": "Service temperatures at which this option is offered, enabling rules like Matcha Sua gaining cream builds when iced."
+        }
+      }
+    },
+    "modifierGroup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "dimension", "name", "required", "options"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "dimension": {
+          "enum": ["milk", "sweetener_type", "sweetness_level", "cold_foam"],
+          "description": "Which frozen customization dimension this group expresses."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Display name of the group."
+        },
+        "required": {
+          "type": "boolean",
+          "description": "True when the guest must make exactly one selection; optional groups default to unselected."
+        },
+        "options": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/modifierOption" }
+        },
+        "defaultOptionId": {
+          "$ref": "#/$defs/identifier",
+          "description": "Default selection for required groups whose options do not vary by temperature."
+        },
+        "defaultByTemperature": {
+          "type": "object",
+          "propertyNames": { "enum": ["hot", "iced"] },
+          "additionalProperties": { "$ref": "#/$defs/identifier" },
+          "description": "Default selection per service temperature for required groups whose options do vary by temperature."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "dimension": { "const": "cold_foam" } }
+          },
+          "then": {
+            "description": "Cold foam is offered only when a drink is iced.",
+            "properties": {
+              "options": {
+                "items": {
+                  "properties": {
+                    "temperatures": {
+                      "type": "array",
+                      "minItems": 1,
+                      "maxItems": 1,
+                      "uniqueItems": true,
+                      "items": { "const": "iced" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "dimension": { "const": "sweetness_level" } }
+          },
+          "then": {
+            "description": "Sweetness uses the standard five-step scale.",
+            "properties": {
+              "options": {
+                "minItems": 5,
+                "maxItems": 5,
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "enum": ["full", "75", "50", "25", "none"] }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "menuItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "nameVi", "description", "categoryId", "temperatures", "modifierGroupIds"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "English name."
+        },
+        "nameVi": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Vietnamese name as printed on the recipes menu."
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "description": "English description from the recipes menu."
+        },
+        "categoryId": { "$ref": "#/$defs/identifier" },
+        "temperatures": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/temperature" },
+          "description": "Offered service temperatures; at least one, from the nong/da tags."
+        },
+        "modifierGroupIds": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/identifier" },
+          "description": "Customization groups allowed on this item per cafe.md."
+        },
+        "imagePath": {
+          "type": "string",
+          "pattern": "^/images/menu/[a-z0-9-]+\\.(jpg|jpeg|png|webp|avif)$",
+          "description": "Optional photo served at /images/menu/<itemId>.<ext>; absent means the on-brand placeholder."
+        }
+      }
+    }
+  }
+}
