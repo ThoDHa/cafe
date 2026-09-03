@@ -2,6 +2,8 @@
 
 A locally run ordering system for the home cafe behind the [recipes](../recipes) repository. Guests browse the drink menu and order from their own device; a barista screen shows a live queue and moves drinks from placed to making to done. Order status flows back to the guest in real time.
 
+The full requirements, decisions, and roadmap live in the [PRD](PRD.md).
+
 **Status:** planned, pre-build. The roadmap below tracks the six checkpoints; nothing has been implemented yet, so the run commands in [Running](#running) are the target interface, not working commands.
 
 ## Architecture
@@ -25,6 +27,10 @@ Two directions, both riding the existing SSE events with no server changes:
 - Guest, drink ready: an opt-in "notify me when ready" on the confirmation screen (the same gesture grants Notification permission); completion fires a browser notification plus chime, with the in-page live status always as the baseline
 
 Notifications use the Notification API from the live page rather than push infrastructure: a push server and VAPID keys add nothing to a locally run system, with the known tradeoff that notifications arrive while the ordering tab is open.
+
+### Order History
+
+Each guest device keeps its own order history in localStorage: past orders listed newest first with live status, and any entry reorders into the cart with one tap (lines for drinks no longer on the menu are skipped gracefully). No accounts, no server-side identity: the device is the guest.
 
 ## Menu Scope
 
