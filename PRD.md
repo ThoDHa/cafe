@@ -86,9 +86,9 @@ Each menu item carries: Vietnamese name, English description, hot/iced availabil
 - The menu data passes automated integrity checks (every referenced option exists, every item has at least one temperature, photo references match the agreed convention)
 - The live flows are verified end to end across two real browsers: order placed on the guest surface appears on the barista surface within 2 seconds without refresh, status changes reflect on both surfaces, and both restart-persistence guarantees hold
 
-## 7. Open Decisions (next: solution review)
+## 7. Open Decisions (resolved in the design review)
 
-The requirements above are settled; everything below is deliberately undecided and will be chosen in the solution review before building:
+The requirements above are settled; everything below was decided on 2026-09-03 in the design review. Choices and rejected alternatives are recorded in the Decision Record of the [design document](DESIGN.md).
 
 1. Backend language and framework
 2. Storage engine for orders

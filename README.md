@@ -2,9 +2,9 @@
 
 A locally run ordering system for the home cafe behind the [recipes](../recipes) repository. Guests browse the drink menu and order from their own device; a barista works a live queue and moves drinks from placed to making to done; order status flows back to the guest in real time.
 
-The requirements live in the [PRD](PRD.md).
+The requirements live in the [PRD](PRD.md). The decided solution (architecture, data, API, verification, packaging, build plan) lives in the [design document](DESIGN.md).
 
-**Status:** requirements complete, solution review pending. Nothing has been built; the technical approach, architecture, and build plan will be decided in the solution review (see [Open Decisions](PRD.md#7-open-decisions-next-solution-review) in the PRD) and documented here once settled.
+**Status:** requirements and design complete, pre-build. When built, the API documents itself with Swagger UI at `/docs` and ReDoc at `/redoc`, generated from the same schema that produces the web app's TypeScript types.
 
 ## Product at a Glance
 
