@@ -405,137 +405,70 @@ class HeartbeatEvent(_ContractModel):
 
 ServerEvent = Union[OrderNewEvent, OrderStatusEvent, HeartbeatEvent]
 
+_ORDER_LINE_EXAMPLE = {
+    "itemId": "matcha-sua",
+    "temperature": "iced",
+    "quantity": 2,
+    "milkOptionId": "oat-milk",
+    "sweetenerTypeId": "condensed-milk",
+    "sweetnessLevelId": "50",
+    "coldFoamId": "foam-salted",
+    "notes": "extra hot, please",
+}
+
+_ORDER_LINE_VIEW_EXAMPLE = {
+    "itemId": "matcha-sua",
+    "itemName": "Matcha Latte",
+    "itemNameVi": "Matcha Sữa",
+    "temperature": "iced",
+    "quantity": 2,
+    "milkOptionId": "oat-milk",
+    "milkOptionName": "Oat milk",
+    "sweetenerTypeId": "condensed-milk",
+    "sweetenerTypeName": "Condensed milk",
+    "sweetnessLevelId": "50",
+    "sweetnessLevelName": "50%",
+    "coldFoamId": "foam-salted",
+    "coldFoamName": "Salted Cold Foam",
+    "notes": None,
+}
+
+_ORDER_EXAMPLE = {
+    "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "orderNumber": 7,
+    "status": "placed",
+    "customerName": "Lan",
+    "items": [_ORDER_LINE_VIEW_EXAMPLE],
+    "createdAt": "2026-09-03T15:04:05Z",
+    "updatedAt": "2026-09-03T15:04:05Z",
+}
+
+_ORDER_IN_PROGRESS_EXAMPLE = _ORDER_EXAMPLE | {
+    "status": "in_progress",
+    "updatedAt": "2026-09-03T15:09:11Z",
+}
+
 OrderNewEvent.model_config["json_schema_extra"] = {
-    "example": {
-        "type": "order:new",
-        "order": {
-            "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-            "orderNumber": 7,
-            "status": "placed",
-            "customerName": "Lan",
-            "items": [
-                {
-                    "itemId": "matcha-sua",
-                    "itemName": "Matcha Latte",
-                    "itemNameVi": "Matcha Sữa",
-                    "temperature": "iced",
-                    "quantity": 2,
-                    "milkOptionId": "oat-milk",
-                    "milkOptionName": "Oat milk",
-                    "sweetenerTypeId": "condensed-milk",
-                    "sweetenerTypeName": "Condensed milk",
-                    "sweetnessLevelId": "50",
-                    "sweetnessLevelName": "50%",
-                    "coldFoamId": "foam-salted",
-                    "coldFoamName": "Salted Cold Foam",
-                    "notes": None,
-                }
-            ],
-            "createdAt": "2026-09-03T15:04:05Z",
-            "updatedAt": "2026-09-03T15:04:05Z",
-        },
-    }
+    "example": {"type": "order:new", "order": _ORDER_EXAMPLE}
 }
 
 OrderStatusEvent.model_config["json_schema_extra"] = {
-    "example": {
-        "type": "order:status",
-        "order": {
-            "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-            "orderNumber": 7,
-            "status": "in_progress",
-            "customerName": "Lan",
-            "items": [
-                {
-                    "itemId": "matcha-sua",
-                    "itemName": "Matcha Latte",
-                    "itemNameVi": "Matcha Sữa",
-                    "temperature": "iced",
-                    "quantity": 2,
-                    "milkOptionId": "oat-milk",
-                    "milkOptionName": "Oat milk",
-                    "sweetenerTypeId": "condensed-milk",
-                    "sweetenerTypeName": "Condensed milk",
-                    "sweetnessLevelId": "50",
-                    "sweetnessLevelName": "50%",
-                    "coldFoamId": "foam-salted",
-                    "coldFoamName": "Salted Cold Foam",
-                    "notes": None,
-                }
-            ],
-            "createdAt": "2026-09-03T15:04:05Z",
-            "updatedAt": "2026-09-03T15:09:11Z",
-        },
-    }
+    "example": {"type": "order:status", "order": _ORDER_IN_PROGRESS_EXAMPLE}
 }
 
 HeartbeatEvent.model_config["json_schema_extra"] = {
     "example": {"type": "heartbeat", "sentAt": "2026-09-03T15:04:30Z"}
 }
 
-OrderLine.model_config["json_schema_extra"] = {
-    "example": {
-        "itemId": "matcha-sua",
-        "temperature": "iced",
-        "quantity": 2,
-        "milkOptionId": "oat-milk",
-        "sweetenerTypeId": "condensed-milk",
-        "sweetnessLevelId": "50",
-        "coldFoamId": "foam-salted",
-        "notes": "extra hot, please",
-    }
-}
+OrderLine.model_config["json_schema_extra"] = {"example": _ORDER_LINE_EXAMPLE}
 
 OrderCreate.model_config["json_schema_extra"] = {
-    "example": {
-        "customerName": "Lan",
-        "items": [
-            {
-                "itemId": "matcha-sua",
-                "temperature": "iced",
-                "quantity": 2,
-                "milkOptionId": "oat-milk",
-                "sweetenerTypeId": "condensed-milk",
-                "sweetnessLevelId": "50",
-                "coldFoamId": "foam-salted",
-                "notes": "extra hot, please",
-            }
-        ],
-    }
+    "example": {"customerName": "Lan", "items": [_ORDER_LINE_EXAMPLE]}
 }
 
-Order.model_config["json_schema_extra"] = {
-    "example": {
-        "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-        "orderNumber": 7,
-        "status": "placed",
-        "customerName": "Lan",
-        "items": [
-            {
-                "itemId": "matcha-sua",
-                "itemName": "Matcha Latte",
-                "itemNameVi": "Matcha Sữa",
-                "temperature": "iced",
-                "quantity": 2,
-                "milkOptionId": "oat-milk",
-                "milkOptionName": "Oat milk",
-                "sweetenerTypeId": "condensed-milk",
-                "sweetenerTypeName": "Condensed milk",
-                "sweetnessLevelId": "50",
-                "sweetnessLevelName": "50%",
-                "coldFoamId": "foam-salted",
-                "coldFoamName": "Salted Cold Foam",
-                "notes": None,
-            }
-        ],
-        "createdAt": "2026-09-03T15:04:05Z",
-        "updatedAt": "2026-09-03T15:04:05Z",
-    }
-}
+Order.model_config["json_schema_extra"] = {"example": _ORDER_EXAMPLE}
 
-OrderLineView.model_config["json_schema_extra"] = {
-    "example": Order.model_config["json_schema_extra"]["example"]["items"][0]
-}
+OrderLineView.model_config["json_schema_extra"] = {"example": _ORDER_LINE_VIEW_EXAMPLE}
 
 OrderStatusUpdate.model_config["json_schema_extra"] = {"example": {"status": "in_progress"}}
 
