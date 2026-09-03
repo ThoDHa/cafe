@@ -1,0 +1,49 @@
+/*
+ * Design tokens ported verbatim from recipes/menu.html: the cream and
+ * cobalt palette, the Bungee/Lora/Be Vietnam Pro type stack, and the
+ * nong/da pill treatment. One token set for both surfaces (DESIGN.md
+ * section 5). Values must not drift from the recipes menu.
+ */
+
+:root {
+  --sua: #f3ecdc; /* label cream */
+  --sua-deep: #eae0c9; /* darker cream for panels */
+  --cobalt: #1f3564; /* enamel sign blue */
+  --cobalt-soft: #3a5183;
+  --seal: #b5372a; /* red seal / nong */
+  --matcha: #6b7f3f; /* leaf green */
+  --ink: #1b2233;
+  --ink-muted: #56513f; /* warm muted text on cream */
+  --rule: #c9bb9c; /* hairline on cream */
+  --display: "Bungee", "Arial Black", sans-serif;
+  --names: "Lora", Georgia, serif;
+  --body: "Be Vietnam Pro", "Segoe UI", system-ui, sans-serif;
+}
+
+/*
+ * Pill tags for temperature, matching .tag / .tag.nong / .tag.da of
+ * the recipes menu declaration for declaration.
+ */
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  white-space: nowrap;
+  background: var(--sua);
+}
+
+.pill-nong {
+  color: var(--seal);
+  border: 1.5px solid var(--seal);
+}
+
+.pill-da {
+  color: var(--cobalt);
+  border: 1.5px solid var(--cobalt);
+}
