@@ -1,0 +1,13 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+
+# Local data
+server/data/*.db
+server/data/*.db-*
+.env
+
+# Task tracking (local only, not versioned)
+.tasks/
