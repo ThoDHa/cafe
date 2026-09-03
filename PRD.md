@@ -39,7 +39,7 @@ No authentication anywhere: this is a trusted household network. The guest's dev
 
 ## 4. Menu Scope and Data
 
-Source of truth: `../recipes`. Extraction is hand-curated from `menu.html` (the customer-facing item list) cross-checked against `cafe.md` (composition rules), producing `shared/data/menu.json` consumed by server and both apps.
+Source of truth: `../recipes`. Extraction is hand-curated from `menu.html` (the customer-facing item list) cross-checked against `cafe.md` (composition rules), producing `shared/data/menu.json` consumed by server and web.
 
 **Coverage:** every item in the five sections, Cà Phê, Mát-cha, Trà, Giải Khát, Kem, with Vietnamese names, English descriptions, and hot/iced availability from the nóng/đá tags. The Kem section's cold foams appear both as standalone drinks and as modifier options on other drinks.
 
