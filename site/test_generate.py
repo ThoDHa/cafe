@@ -3,6 +3,7 @@
 Run: uv run --with pytest pytest site/ -q
 """
 
+import re
 import sys
 import textwrap
 from pathlib import Path
@@ -21,6 +22,8 @@ FIXTURE = textwrap.dedent(
     # Cafe Fixture
 
     ## Coffee
+
+    Sweet, milky, shaken: the classics, hot or iced.
 
     ### Vietnamese Iced Coffee
 
@@ -57,6 +60,8 @@ FIXTURE = textwrap.dedent(
     - Ice
 
     ## Refreshers
+
+    Strawberry and lime sodas, a milk limeade, strawberry milk, and cocoa.
 
     ### Cocoa
 
@@ -146,6 +151,20 @@ class TestParserSections:
         assert menu.by_id("tra").title_vi == "Trà"
         assert menu.by_id("giai-khat").title_vi == "Giải Khát"
         assert menu.by_id("kem").title_en == "Cold Foams"
+
+    def test_category_blurb_is_parsed_from_fixture(self):
+        menu = parsed_fixture()
+        assert menu.by_id("ca-phe").note == (
+            "Sweet, milky, shaken: the classics, hot or iced."
+        )
+        assert menu.by_id("giai-khat").note == (
+            "Strawberry and lime sodas, a milk limeade, strawberry milk, and cocoa."
+        )
+
+    def test_blurb_is_not_mistaken_for_an_item_description(self):
+        menu = parsed_fixture()
+        first = menu.by_id("ca-phe").items[0]
+        assert first.description.startswith("The classic: strong coffee")
 
 
 class TestParserItems:
@@ -315,14 +334,24 @@ class TestRealRecipesFile:
         counts = {s.id: len(s.items) for s in menu.sections}
         minimums = {
             "ca-phe": 10,
-            "mat-cha": 8,
             "tra": 4,
+            "mat-cha": 8,
             "giai-khat": 6,
             "kem": 8,
         }
         assert set(counts) == set(minimums)
         for section_id, minimum in minimums.items():
             assert counts[section_id] >= minimum, (section_id, counts[section_id])
+
+    def test_real_section_order_is_tra_before_mat_cha(self):
+        menu = generate.parse_menu(RECIPES_CAFE.read_text())
+        assert [s.id for s in menu.sections] == [
+            "ca-phe",
+            "tra",
+            "mat-cha",
+            "giai-khat",
+            "kem",
+        ]
 
     def test_real_spot_temperatures(self):
         menu = generate.parse_menu(RECIPES_CAFE.read_text())
@@ -372,6 +401,16 @@ class TestRealRecipesFile:
         assert vi["Strawberry Matcha"] == "Matcha Dâu"
         assert vi["Milk Limeade"] == "Chanh Sữa Dầm"
 
+    def test_real_category_blurbs_parsed_for_all_drink_sections(self):
+        menu = generate.parse_menu(RECIPES_CAFE.read_text())
+        expected = {
+            "ca-phe": "Sweet, milky, shaken, layered, sparkling, or brewed by the cup: coffee every way.",
+            "tra": "Milky tea, fresh lemon tea, or a straight cup brewed by the leaf.",
+            "mat-cha": "Whisked matcha as lattes, milk floats, sodas, and tonics, plus the coffee-style undertow and affogato parallels.",
+            "giai-khat": "Strawberry and lime sodas, a milk limeade, strawberry milk, and cocoa.",
+        }
+        assert {s.id: s.note for s in menu.sections if s.note} == expected
+
 
 class TestRender:
     def test_render_contains_sections_and_items(self):
@@ -384,7 +423,7 @@ class TestRender:
             ">TRÀ<",
             ">GIẢI KHÁT<",
             ">KEM<",
-            "Sữa Đá",
+            "Cà Phê Sữa",
             "Matcha Sữa",
             "Trà Sữa",
         ]:
@@ -405,6 +444,18 @@ class TestRender:
         assert "application/json" not in page
         assert "cafe-menu-data" not in page
 
+    def test_render_contains_category_blurbs(self):
+        menu = generate.parse_menu(RECIPES_CAFE.read_text())
+        page = generate.render_menu_page(menu)
+        for blurb in [
+            "Sweet, milky, shaken, layered, sparkling",
+            "Milky tea, fresh lemon tea, or a straight cup",
+            "Whisked matcha as lattes, milk floats",
+            "Strawberry and lime sodas, a milk limeade",
+        ]:
+            assert blurb in page, f"missing blurb {blurb!r}"
+        assert 'class="section-note"' in page
+
     def test_render_escapes_item_text(self):
         menu = generate.parse_menu(RECIPES_CAFE.read_text())
         menu.by_id("ca-phe").items[0].description = "<script>alert(1)</script>"
@@ -412,20 +463,122 @@ class TestRender:
         assert "<script>alert" not in page
 
 
-class TestBuildSite:
-    def test_build_site_writes_full_artifact(self, tmp_path):
+class TestCompactRender:
+    def test_compact_omits_descriptions(self):
+        menu = generate.parse_menu(RECIPES_CAFE.read_text())
+        page = generate.render_compact_page(menu)
+        assert 'class="item-desc"' not in page
+
+    def test_compact_keeps_names_pills_and_blurbs(self):
+        menu = generate.parse_menu(RECIPES_CAFE.read_text())
+        page = generate.render_compact_page(menu)
+        for needle in [
+            "CÀ PHÊ<",
+            "TRÀ<",
+            "MÁT-CHA<",
+            "Trà Sữa",
+            "Matcha Dâu",
+            "Cà Phê Sữa",
+            "class=\"tag nong\"",
+            "class=\"tag da\"",
+            "class=\"section-note\"",
+            "bản rút gọn",
+        ]:
+            assert needle in page, f"missing {needle!r}"
+
+
+class TestPrintFit:
+    PAGE = "<html><head><title>x</title></head><body><p>menu</p></body></html>"
+
+    def _fake_counts(self, monkeypatch, fits_at):
+        def fake(page_html, base_url=None, papers=generate.PAPER_SIZES):
+            root = 16.0
+            match = re.search(r"font-size: ([\d.]+)px", page_html)
+            if match:
+                root = float(match.group(1))
+            pages = 2 if root <= fits_at else 3
+            return {size: pages for size in papers}
+
+        monkeypatch.setattr(generate, "render_page_counts", fake)
+
+    def test_fit_returns_largest_size_that_fits(self, monkeypatch):
+        self._fake_counts(monkeypatch, fits_at=14.0)
+        fitted, root = generate.fit_print_root(self.PAGE, label="menu.html")
+        assert root == 14.0
+        assert 'font-size: 14px' in fitted
+
+    def test_fit_skips_injection_when_default_fits(self, monkeypatch):
+        self._fake_counts(monkeypatch, fits_at=16.0)
+        fitted, root = generate.fit_print_root(self.PAGE, label="menu.html")
+        assert root is None
+        assert generate.PRINT_FIT_STYLE_ID not in fitted
+
+    def test_fit_replaces_stale_injection(self, monkeypatch):
+        self._fake_counts(monkeypatch, fits_at=14.0)
+        pre_injected = generate.inject_print_root(self.PAGE, 12.0)
+        fitted, root = generate.fit_print_root(pre_injected, label="menu.html")
+        assert root == 14.0
+        assert fitted.count(generate.PRINT_FIT_STYLE_ID) == 1
+        assert 'font-size: 14px' in fitted
+
+    def test_fit_fails_loudly_below_floor(self, monkeypatch):
+        self._fake_counts(monkeypatch, fits_at=0.0)
+        try:
+            generate.fit_print_root(self.PAGE, label="menu.html")
+        except generate.PrintFitError as exc:
+            assert "floor" in str(exc)
+        else:
+            raise AssertionError("expected PrintFitError")
+
+    def test_injection_only_affects_print(self):
+        fitted = generate.inject_print_root(self.PAGE, 13.5)
+        assert "@media print" in fitted
+        assert "13.5px" in fitted
+
+
+class TestPageBudget:
+    def test_built_site_stays_within_two_printed_pages(self, tmp_path):
         out = tmp_path / "public"
         generate.build_site(recipes_path=RECIPES_CAFE, out_dir=out)
-        expected = ["index.html", "menu.html", "kitchen.html", "bar.html"]
+        for page in ("menu.html", "kitchen.html", "bar.html"):
+            counts = generate.render_page_counts((out / page).read_text())
+            for size, count in counts.items():
+                assert count <= 2, (page, size, count)
+        counts = generate.render_page_counts((out / "compact.html").read_text())
+        for size, count in counts.items():
+            assert count == 1, ("compact.html", size, count)
+
+
+class TestBuildSite:
+    def _build(self, tmp_path):
+        out = tmp_path / "public"
+        generate.build_site(recipes_path=RECIPES_CAFE, out_dir=out, fit_pages=False)
+        return out
+
+    def test_build_site_writes_full_artifact(self, tmp_path):
+        out = self._build(tmp_path)
+        expected = [
+            "index.html",
+            "menu.html",
+            "compact.html",
+            "kitchen.html",
+            "bar.html",
+        ]
         for name in expected:
             assert (out / name).is_file(), f"missing {name}"
-        assert (out / "kitchen.html").read_text() == (
-            REPO_ROOT / "menu" / "kitchen.html"
-        ).read_text()
+        assert (out / "index.html").read_text() == (out / "menu.html").read_text()
+        for page in ("kitchen.html", "bar.html"):
+            assert "CAFE ÔNG THỌ" in (out / page).read_text()
+
+    def test_homepage_is_the_full_menu(self, tmp_path):
+        out = self._build(tmp_path)
+        homepage = (out / "index.html").read_text()
+        assert ">CÀ PHÊ<" in homepage
+        assert ">GIẢI KHÁT<" in homepage
+        assert 'class="tag nong"' in homepage
 
     def test_build_site_copies_assets(self, tmp_path):
-        out = tmp_path / "public"
-        generate.build_site(recipes_path=RECIPES_CAFE, out_dir=out)
+        out = self._build(tmp_path)
         asset_source = REPO_ROOT / "menu" / "assets"
         if any(asset_source.iterdir()):
             copied = {p.name for p in (out / "assets").iterdir()}

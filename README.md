@@ -19,10 +19,11 @@ The requirements live in the [PRD](PRD.md). The decided solution (architecture, 
 
 The menus are publicly browsable at [thodha.github.io/cafe](https://thodha.github.io/cafe/), independent of the home ordering system:
 
-- **Drinks menu** (`menu.html`): generated at deploy time by [`site/generate.py`](site/generate.py), which pulls drinks from `cafe.md` in the public [recipes repository](https://github.com/ThoDHa/recipes) and renders them through the template in [`site/templates/`](site/templates/). A drink added to recipes appears at the next deployment with no change here; a drink-like section the generator cannot place fails the build loudly instead of being dropped.
-- **Kitchen and bar menus** (`kitchen.html`, `bar.html`): the hand-authored pages in [`menu/`](menu/), shipped as-is.
-- **Index** (`index.html`): a landing page linking the three menus.
+- **Drinks menu, the homepage** (`/cafe/` and `/cafe/menu.html`): generated at deploy time by [`site/generate.py`](site/generate.py), which pulls drinks from `cafe.md` in the public [recipes repository](https://github.com/ThoDHa/recipes) and renders them through the templates in [`site/templates/`](site/templates/). The four drink sections print in the order Cà Phê, Trà, Mát-cha, Giải Khát, then Kem; each category's blurb in `cafe.md` appears as its section note. A drink added to recipes appears at the next deployment with no change here; a drink-like section the generator cannot place fails the build loudly instead of being dropped.
+- **Compact menu** (`/cafe/menu/compact.html`): a one-page print reference with the same items, keeping Vietnamese and English names, nóng/đá tags, and the category blurbs while dropping item descriptions.
+- **Kitchen and bar menus** (`kitchen.html`, `bar.html`): the hand-authored pages in [`menu/`](menu/), republished alongside.
+- **Print budgets enforced at build time**: the generator renders every page with weasyprint and steps the print font size down (16px to an 11px floor) until the menu, kitchen, and bar pages fit two printed pages on A4 and Letter, and the compact page fits one. A page that cannot fit fails the build instead of shipping an overflowing printout.
 
-Deploying: a push to `main` (or a manual workflow dispatch) runs [`.github/workflows/menu-pages.yml`](.github/workflows/menu-pages.yml), which regenerates the site from the latest recipes and publishes it to this repository's GitHub Pages.
+Deploying: a push to `main` (or a manual workflow dispatch) runs [`.github/workflows/menu-pages.yml`](.github/workflows/menu-pages.yml), which runs the generator's tests, regenerates the site from the latest recipes, and publishes it to this repository's GitHub Pages.
 
-Working locally: `make site` regenerates `site/public/` from the sibling `../recipes` checkout (`python3 site/generate.py --recipes <path>` to point elsewhere), and `make test-site` runs the generator's test suite.
+Working locally: `make site` regenerates `site/public/` from the sibling `../recipes` checkout (both `make site` and `make test-site` run under `uv` with weasyprint; pass `--no-fit-pages` to skip the print-budget pass).

@@ -21,7 +21,7 @@ contract:
 	$(MAKE) -C web generate-types
 
 site:
-	python3 site/generate.py
+	uv run --with weasyprint python site/generate.py
 
 test-site:
-	uv run --with pytest pytest site/ -q
+	uv run --with pytest --with weasyprint pytest site/ -q

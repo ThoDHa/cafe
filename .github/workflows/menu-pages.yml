@@ -23,11 +23,11 @@ jobs:
         with:
           repository: ThoDHa/recipes
           path: recipes
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.14"
+      - uses: astral-sh/setup-uv@v5
+      - name: Run generator tests
+        run: uv run --with pytest --with weasyprint pytest site/ -q
       - name: Generate menus site
-        run: python3 site/generate.py --recipes recipes/cafe.md
+        run: uv run --with weasyprint python site/generate.py --recipes recipes/cafe.md
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site/public
