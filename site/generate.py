@@ -96,7 +96,6 @@ SERVE_CUE_PARAGRAPHS = {
     "served hot or iced",
     "hot or iced",
     "served iced",
-    "served iced.",
     "served hot",
 }
 
