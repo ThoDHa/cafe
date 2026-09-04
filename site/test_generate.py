@@ -547,9 +547,9 @@ class TestPageBudget:
             counts = generate.render_page_counts((out / page).read_text())
             for size, count in counts.items():
                 assert count <= 2, (page, size, count)
-        counts = generate.render_page_counts((out / "compact.html").read_text())
+        counts = generate.render_page_counts((out / "menu" / "compact.html").read_text())
         for size, count in counts.items():
-            assert count == 1, ("compact.html", size, count)
+            assert count == 1, ("menu/compact.html", size, count)
 
 
 class TestBuildSite:
@@ -563,7 +563,7 @@ class TestBuildSite:
         expected = [
             "index.html",
             "menu.html",
-            "compact.html",
+            "menu/compact.html",
             "kitchen.html",
             "bar.html",
         ]

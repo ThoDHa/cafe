@@ -547,10 +547,13 @@ def build_site(
     compact_page = render_compact_page(menu)
     if fit_pages:
         compact_page, compact_root = fit_print_root(
-            compact_page, label="compact.html", max_pages=COMPACT_PAGE_BUDGET
+            compact_page,
+            label="menu/compact.html",
+            max_pages=COMPACT_PAGE_BUDGET,
         )
-        fitted.append(("compact.html", compact_root))
-    (out_dir / "compact.html").write_text(compact_page)
+        fitted.append(("menu/compact.html", compact_root))
+    (out_dir / "menu").mkdir(exist_ok=True)
+    (out_dir / "menu" / "compact.html").write_text(compact_page)
     for page in ("kitchen.html", "bar.html"):
         page_html = (MENU_SOURCE_DIR / page).read_text()
         if fit_pages:
