@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cafe Ông Thọ — Kitchen</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Lora:ital,wght@0,500;0,600;1,500;1,600&family=Be+Vietnam+Pro:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+  :root {
+    --sua: #F3ECDC;        /* label cream */
+    --sua-deep: #EAE0C9;   /* darker cream for panels */
+    --cobalt: #1F3564;     /* enamel sign blue */
+    --cobalt-soft: #3A5183;
+    --seal: #B5372A;       /* red seal / nóng */
+    --matcha: #6B7F3F;     /* leaf green */
+    --ink: #1B2233;
+    --ink-muted: #56513F;  /* warm muted text on cream */
+    --rule: #C9BB9C;       /* hairline on cream */
+    --display: 'Bungee', 'Arial Black', sans-serif;
+    --names: 'Lora', Georgia, serif;
+    --body: 'Be Vietnam Pro', 'Segoe UI', system-ui, sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html { background: var(--sua-deep); }
+
+  body {
+    margin: 0;
+    background: var(--sua-deep);
+    color: var(--ink);
+    font-family: var(--body);
+    line-height: 1.6;
+    padding: clamp(0.75rem, 3vw, 2.5rem);
+  }
+
+  .card {
+    max-width: 880px;
+    margin: 0 auto;
+    background: var(--sua);
+    border: 3px solid var(--cobalt);
+    box-shadow: 0 0 0 6px var(--sua), 0 0 0 7px var(--rule), 0 18px 40px -18px rgba(31, 53, 100, 0.45);
+    padding: clamp(1.5rem, 5vw, 3.5rem);
+  }
+
+  /* ---------- header plaque ---------- */
+
+  header {
+    text-align: center;
+    border: 2px solid var(--cobalt);
+    box-shadow: inset 0 0 0 4px var(--sua), inset 0 0 0 5px var(--cobalt);
+    padding: clamp(1.5rem, 4vw, 2.5rem) 1rem clamp(1.25rem, 3vw, 2rem);
+    position: relative;
+    background: var(--sua);
+  }
+
+  .eyebrow {
+    font-size: 0.72rem;
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+    color: var(--seal);
+    font-weight: 600;
+    margin: 0 0 0.75rem;
+  }
+
+  h1 {
+    font-family: var(--display);
+    font-weight: 400;
+    color: var(--cobalt);
+    font-size: clamp(1.9rem, 7vw, 3.4rem);
+    line-height: 1.1;
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  .tagline {
+    margin: 0.9rem 0 0;
+    font-family: var(--names);
+    font-style: italic;
+    color: var(--ink-muted);
+    font-size: clamp(0.95rem, 2.5vw, 1.1rem);
+  }
+
+  .seal {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 3rem;
+    height: 3rem;
+    margin-top: 1.1rem;
+    background: var(--seal);
+    color: var(--sua);
+    font-family: var(--display);
+    font-size: 0.95rem;
+    line-height: 1;
+    border-radius: 4px;
+    box-shadow: 0 2px 0 rgba(27, 34, 51, 0.25);
+    transform: rotate(-3deg);
+  }
+
+  /* ---------- sections ---------- */
+
+  section { margin-top: clamp(2.25rem, 6vw, 3.25rem); }
+
+  .section-head {
+    display: flex;
+    align-items: baseline;
+    gap: 1rem;
+    border-bottom: 2px solid var(--cobalt);
+    padding-bottom: 0.4rem;
+    margin-bottom: 0.35rem;
+  }
+
+  h2 {
+    font-family: var(--display);
+    font-weight: 400;
+    font-size: clamp(1.15rem, 3.5vw, 1.5rem);
+    color: var(--cobalt);
+    margin: 0;
+    letter-spacing: 0.02em;
+  }
+
+  .section-en {
+    font-size: 0.72rem;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+    font-weight: 600;
+    margin-left: auto;
+    white-space: nowrap;
+  }
+
+  .section-note {
+    margin: 0.5rem 0 1.25rem;
+    font-size: 0.88rem;
+    color: var(--ink-muted);
+    font-style: italic;
+    font-family: var(--names);
+  }
+
+  .items {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.4rem 2.5rem;
+    margin-top: 1.4rem;
+  }
+
+  @media (max-width: 640px) {
+    .items { grid-template-columns: 1fr; }
+  }
+
+  /* ---------- menu items ---------- */
+
+  .item { min-width: 0; }
+
+  .item-line {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+  }
+
+  .item-name {
+    font-family: var(--names);
+    font-weight: 600;
+    font-size: 1.08rem;
+    color: var(--ink);
+  }
+
+  .tags { display: inline-flex; gap: 0.35rem; margin-left: auto; }
+
+  .tag {
+    font-size: 0.66rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 0.1rem 0.5rem;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+
+  .tag.nong { color: var(--seal); border: 1.5px solid var(--seal); background: var(--sua); }
+  .tag.da   { color: var(--cobalt); border: 1.5px solid var(--cobalt); background: var(--sua); }
+
+  .item-vi {
+    font-family: var(--names);
+    font-style: italic;
+    color: var(--matcha);
+    font-size: 0.9rem;
+    margin: 0.1rem 0 0;
+  }
+
+  .item-desc {
+    margin: 0.25rem 0 0;
+    font-size: 0.88rem;
+    color: var(--ink-muted);
+    max-width: 34ch;
+  }
+
+  /* ---------- phin-drip divider ---------- */
+
+  .drip {
+    display: flex;
+    justify-content: center;
+    gap: 0.6rem;
+    margin: clamp(2.25rem, 6vw, 3.25rem) 0 0;
+  }
+
+  .drip span {
+    width: 7px;
+    height: 7px;
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    background: var(--cobalt);
+    opacity: 0.55;
+  }
+
+  .drip span:nth-child(2) { opacity: 0.8; }
+  .drip span:nth-child(3) { opacity: 0.55; }
+
+  /* ---------- footer ---------- */
+
+  footer {
+    margin-top: clamp(2.5rem, 6vw, 3.5rem);
+    border-top: 2px solid var(--cobalt);
+    padding-top: 1.25rem;
+    text-align: center;
+    font-size: 0.88rem;
+    color: var(--ink-muted);
+  }
+
+  footer p { margin: 0.3rem 0; }
+
+  footer a {
+    color: var(--cobalt);
+    font-weight: 600;
+    text-decoration: none;
+    border-bottom: 1px dotted var(--cobalt-soft);
+  }
+
+  footer a:hover { color: var(--seal); border-bottom-color: var(--seal); }
+  footer a:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 3px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+
+  /* ---------- print ---------- */
+
+  @media print {
+    html, body { background: var(--sua); padding: 0; }
+    .card { max-width: none; border: none; box-shadow: none; padding: 0.5cm; }
+    section, .item { break-inside: avoid; }
+    .section-head { break-after: avoid; }
+    .drip { display: none; }
+    .seal, .tag {
+      print-color-adjust: exact;
+      -webkit-print-color-adjust: exact;
+    }
+    footer a { border-bottom: none; }
+    .own-page { break-before: page; }
+    header { padding: 1.1rem 1rem 0.9rem; }
+    h1 { font-size: 2.1rem; }
+    .seal { width: 2.4rem; height: 2.4rem; margin-top: 0.7rem; }
+    section { margin-top: 1.2rem; }
+    .items { gap: 0.7rem 1.6rem; margin-top: 0.8rem; }
+    .item-name { font-size: 0.98rem; }
+    .item-desc, .item-vi { font-size: 0.78rem; }
+    .section-note { margin: 0.35rem 0 0.7rem; font-size: 0.8rem; }
+    body { line-height: 1.45; }
+    footer { margin-top: 1.4rem; padding-top: 0.8rem; }
+  }
+</style>
+</head>
+<body>
+<div class="card">
+
+  <header>
+    <p class="eyebrow">nhà làm · est. quán nhà</p>
+    <h1>CAFE ÔNG THỌ</h1>
+    <p class="tagline">khai vị &middot; món chính &middot; món phụ &middot; sốt &middot; tráng miệng</p>
+    <span class="seal" aria-hidden="true">THỌ</span>
+  </header>
+
+  <section>
+    <div class="section-head">
+      <h2>KHAI VỊ</h2>
+      <span class="section-en">Starters</span>
+    </div>
+    <div class="items">
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Charcuterie Nachos</span>
+        </div>
+        <p class="item-desc">Salt and vinegar chips under molten Brie and prosciutto, finished with arugula, goat cheese, fig, and balsamic.</p>
+      </div>
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Cured Salmon Sashimi</span>
+        </div>
+        <p class="item-desc">One-hour salt and sugar cure, sliced thin and served chilled.</p>
+      </div>
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Cured Salmon Bagel</span>
+        </div>
+        <p class="item-desc">House-cured salmon on a toasted bagel with cream cheese, capers, and pickled onion.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="drip" aria-hidden="true"><span></span><span></span><span></span></div>
+
+  <section>
+    <div class="section-head">
+      <h2>MÓN CHÍNH</h2>
+      <span class="section-en">Mains</span>
+    </div>
+    <div class="items">
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Steak</span>
+        </div>
+        <p class="item-desc">Reverse-seared ribeye basted in garlic brown butter.</p>
+      </div>
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Lamb Rib Chops</span>
+        </div>
+        <p class="item-desc">Seared rib chops, rosy at the center.</p>
+      </div>
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Cánh Gà</span>
+        </div>
+        <p class="item-vi">Chicken Wings</p>
+        <p class="item-desc">Dry-brined and roasted until the skin crackles.</p>
+      </div>
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Shrimp Scampi</span>
+        </div>
+        <p class="item-desc">Garlic-butter shrimp over a tomato base, breadcrumb crown.</p>
+      </div>
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Cajun Shrimp Pasta</span>
+        </div>
+        <p class="item-desc">Buttered Cajun shrimp over pasta in a lobster bisque sauce.</p>
+      </div>
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Crawfish</span>
+        </div>
+        <p class="item-desc">Crawfish boil in seasoned butter with Conecuh sausage, roasted corn, and potatoes.</p>
+      </div>
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Pan Seared Salmon</span>
+        </div>
+        <p class="item-desc">Crisp-skinned salmon with the house dry rub.</p>
+      </div>
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Salmon Sushi Bake</span>
+        </div>
+        <p class="item-desc">Flaked roasted salmon in Kewpie and cream cheese over furikake rice, scooped with seaweed.</p>
+      </div>
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Carne Asada</span>
+        </div>
+        <p class="item-desc">Marinated beef for tacos, nachos, and bowls.</p>
+      </div>
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Ragu</span>
+        </div>
+        <p class="item-vi">Ra-gu</p>
+        <p class="item-desc">Vietnamese-style ragu, slow and deep.</p>
+      </div>
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Beefaroni</span>
+        </div>
+        <p class="item-desc">Pasta folded through ragu and cheese.</p>
+      </div>
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Cháo Ba Chỉ</span>
+        </div>
+        <p class="item-vi">Bacon Over Congee</p>
+        <p class="item-desc">Fish-sauce-glazed bacon over rice congee.</p>
+      </div>
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Braised Beef</span>
+        </div>
+        <p class="item-desc">Slow-braised beef, finished Mexican or Vietnamese.</p>
+      </div>
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Smash Burgers</span>
+        </div>
+        <p class="item-desc">Crisp-edged smash patties, modern burger build.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="drip" aria-hidden="true"><span></span><span></span><span></span></div>
+
+  <section>
+    <div class="section-head">
+      <h2>MÓN PHỤ</h2>
+      <span class="section-en">Sides</span>
+    </div>
+    <div class="items">
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Roasted Garlic Potatoes</span>
+        </div>
+        <p class="item-desc">Oven-roasted, golden and crisp.</p>
+      </div>
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Confit Garlic Mashed Potatoes</span>
+        </div>
+        <p class="item-desc">Whipped smooth with confit garlic and brown butter.</p>
+      </div>
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Mushrooms</span>
+        </div>
+        <p class="item-desc">Oven- or pan-roasted, with brown butter sauce.</p>
+      </div>
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Asparagus</span>
+        </div>
+        <p class="item-desc">Roasted or pan-cooked, bright and snappy.</p>
+      </div>
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Broccolini</span>
+        </div>
+        <p class="item-desc">Roasted or pan-cooked, charred at the edges.</p>
+      </div>
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Brussels Sprouts</span>
+        </div>
+        <p class="item-desc">Oven-roasted until deeply browned.</p>
+      </div>
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Simple Crisp Slaw</span>
+        </div>
+        <p class="item-desc">Cold, crunchy, and sharp.</p>
+      </div>
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Texas Caviar</span>
+        </div>
+        <p class="item-desc">Black-eyed pea and pepper salad, tangy dressing.</p>
+      </div>
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Corn Casserole</span>
+        </div>
+        <p class="item-desc">Sweet corn baked rich and golden.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="drip" aria-hidden="true"><span></span><span></span><span></span></div>
+
+  <section>
+    <div class="section-head">
+      <h2>SỐT &amp; NƯỚC CHẤM</h2>
+      <span class="section-en">Sauces</span>
+    </div>
+    <p class="section-note">Made in house. Ask for pairings.</p>
+    <div class="items">
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Nước Chấm</span>
+        </div>
+        <p class="item-desc">The foundational Vietnamese fish sauce dip.</p>
+      </div>
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Nước Mắm Gừng</span>
+        </div>
+        <p class="item-desc">Ginger fish sauce, built for beef.</p>
+      </div>
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Muối Tiêu Chanh Ớt</span>
+        </div>
+        <p class="item-desc">Salt, pepper, lime, and chili for steak and seafood.</p>
+      </div>
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Nam Jim Jaew</span>
+        </div>
+        <p class="item-desc">Smoky Lao and Thai dipping sauce.</p>
+      </div>
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Chimichurri</span>
+        </div>
+        <p class="item-desc">Argentinian parsley and garlic for grilled meats.</p>
+      </div>
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Creamy Steak Sauce</span>
+        </div>
+        <p class="item-desc">Asian-inspired, rich and savory.</p>
+      </div>
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Soy-Mirin Brown Butter</span>
+        </div>
+        <p class="item-desc">Nutty pan sauce with soy and mirin.</p>
+      </div>
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Mushroom Pan Sauce</span>
+        </div>
+        <p class="item-desc">Brown butter, garlic, soy, and balsamic.</p>
+      </div>
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Creamy Garlic Sauce</span>
+        </div>
+        <p class="item-desc">Smooth, garlicky, and cool.</p>
+      </div>
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Lemon Caper Butter</span>
+        </div>
+        <p class="item-desc">Bright butter sauce for fish.</p>
+      </div>
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Soy Ginger Sauce</span>
+        </div>
+        <p class="item-desc">Warm ginger over a soy base.</p>
+      </div>
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Soy Garlic Sauce</span>
+        </div>
+        <p class="item-desc">Sweet-savory finishing sauce for wings.</p>
+      </div>
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Asian Style Tzatziki</span>
+        </div>
+        <p class="item-desc">Cool yogurt dip with an Asian lean.</p>
+      </div>
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Burger Sauce</span>
+        </div>
+        <p class="item-desc">Diner-style, for burgers and fries.</p>
+      </div>
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Nacho Cheese Sauce</span>
+        </div>
+        <p class="item-desc">Roux-based cheddar and Jack.</p>
+      </div>
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Pico de Gallo</span>
+        </div>
+        <p class="item-desc">Fresh tomato, onion, and lime.</p>
+      </div>
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Simple Guacamole</span>
+        </div>
+        <p class="item-desc">Avocado mashed to order.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="drip" aria-hidden="true"><span></span><span></span><span></span></div>
+
+  <section>
+    <div class="section-head">
+      <h2>TRÁNG MIỆNG</h2>
+      <span class="section-en">Desserts</span>
+    </div>
+    <div class="items">
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Cookies</span>
+        </div>
+        <p class="item-desc">Baked from the house dough: chocolate chip, M&amp;M, oatmeal, or oatmeal raisin.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <p>nhà làm &middot; made in house</p>
+    <p><a href="menu.html">The Drink Menu</a> &middot; <a href="bar.html">The Bar Menu</a></p>
+  </footer>
+
+</div>
+</body>
+</html>

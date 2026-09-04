@@ -9,6 +9,9 @@ node_modules/
 # Build outputs
 dist/
 
+# Generated menus site artifact
+site/public/
+
 # Local data
 server/data/
 .env

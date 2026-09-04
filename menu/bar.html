@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cafe Ông Thọ — Bar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Lora:ital,wght@0,500;0,600;1,500;1,600&family=Be+Vietnam+Pro:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+  :root {
+    --sua: #F3ECDC;        /* label cream */
+    --sua-deep: #EAE0C9;   /* darker cream for panels */
+    --cobalt: #1F3564;     /* enamel sign blue */
+    --cobalt-soft: #3A5183;
+    --seal: #B5372A;       /* red seal / nóng */
+    --matcha: #6B7F3F;     /* leaf green */
+    --ink: #1B2233;
+    --ink-muted: #56513F;  /* warm muted text on cream */
+    --rule: #C9BB9C;       /* hairline on cream */
+    --display: 'Bungee', 'Arial Black', sans-serif;
+    --names: 'Lora', Georgia, serif;
+    --body: 'Be Vietnam Pro', 'Segoe UI', system-ui, sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html { background: var(--sua-deep); }
+
+  body {
+    margin: 0;
+    background: var(--sua-deep);
+    color: var(--ink);
+    font-family: var(--body);
+    line-height: 1.6;
+    padding: clamp(0.75rem, 3vw, 2.5rem);
+  }
+
+  .card {
+    max-width: 880px;
+    margin: 0 auto;
+    background: var(--sua);
+    border: 3px solid var(--cobalt);
+    box-shadow: 0 0 0 6px var(--sua), 0 0 0 7px var(--rule), 0 18px 40px -18px rgba(31, 53, 100, 0.45);
+    padding: clamp(1.5rem, 5vw, 3.5rem);
+  }
+
+  /* ---------- header plaque ---------- */
+
+  header {
+    text-align: center;
+    border: 2px solid var(--cobalt);
+    box-shadow: inset 0 0 0 4px var(--sua), inset 0 0 0 5px var(--cobalt);
+    padding: clamp(1.5rem, 4vw, 2.5rem) 1rem clamp(1.25rem, 3vw, 2rem);
+    position: relative;
+    background: var(--sua);
+  }
+
+  .eyebrow {
+    font-size: 0.72rem;
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+    color: var(--seal);
+    font-weight: 600;
+    margin: 0 0 0.75rem;
+  }
+
+  h1 {
+    font-family: var(--display);
+    font-weight: 400;
+    color: var(--cobalt);
+    font-size: clamp(1.9rem, 7vw, 3.4rem);
+    line-height: 1.1;
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  .tagline {
+    margin: 0.9rem 0 0;
+    font-family: var(--names);
+    font-style: italic;
+    color: var(--ink-muted);
+    font-size: clamp(0.95rem, 2.5vw, 1.1rem);
+  }
+
+  .seal {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 3rem;
+    height: 3rem;
+    margin-top: 1.1rem;
+    background: var(--seal);
+    color: var(--sua);
+    font-family: var(--display);
+    font-size: 0.95rem;
+    line-height: 1;
+    border-radius: 4px;
+    box-shadow: 0 2px 0 rgba(27, 34, 51, 0.25);
+    transform: rotate(-3deg);
+  }
+
+  /* ---------- sections ---------- */
+
+  section { margin-top: clamp(2.25rem, 6vw, 3.25rem); }
+
+  .section-head {
+    display: flex;
+    align-items: baseline;
+    gap: 1rem;
+    border-bottom: 2px solid var(--cobalt);
+    padding-bottom: 0.4rem;
+    margin-bottom: 0.35rem;
+  }
+
+  h2 {
+    font-family: var(--display);
+    font-weight: 400;
+    font-size: clamp(1.15rem, 3.5vw, 1.5rem);
+    color: var(--cobalt);
+    margin: 0;
+    letter-spacing: 0.02em;
+  }
+
+  .section-en {
+    font-size: 0.72rem;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+    font-weight: 600;
+    margin-left: auto;
+    white-space: nowrap;
+  }
+
+  .section-note {
+    margin: 0.5rem 0 1.25rem;
+    font-size: 0.88rem;
+    color: var(--ink-muted);
+    font-style: italic;
+    font-family: var(--names);
+  }
+
+  .items {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.4rem 2.5rem;
+    margin-top: 1.4rem;
+  }
+
+  @media (max-width: 640px) {
+    .items { grid-template-columns: 1fr; }
+  }
+
+  /* ---------- menu items ---------- */
+
+  .item { min-width: 0; }
+
+  .item-line {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+  }
+
+  .item-name {
+    font-family: var(--names);
+    font-weight: 600;
+    font-size: 1.08rem;
+    color: var(--ink);
+  }
+
+  .tags { display: inline-flex; gap: 0.35rem; margin-left: auto; }
+
+  .tag {
+    font-size: 0.66rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 0.1rem 0.5rem;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+
+  .tag.nong { color: var(--seal); border: 1.5px solid var(--seal); background: var(--sua); }
+  .tag.da   { color: var(--cobalt); border: 1.5px solid var(--cobalt); background: var(--sua); }
+
+  .item-vi {
+    font-family: var(--names);
+    font-style: italic;
+    color: var(--matcha);
+    font-size: 0.9rem;
+    margin: 0.1rem 0 0;
+  }
+
+  .item-desc {
+    margin: 0.25rem 0 0;
+    font-size: 0.88rem;
+    color: var(--ink-muted);
+    max-width: 34ch;
+  }
+
+  /* ---------- phin-drip divider ---------- */
+
+  .drip {
+    display: flex;
+    justify-content: center;
+    gap: 0.6rem;
+    margin: clamp(2.25rem, 6vw, 3.25rem) 0 0;
+  }
+
+  .drip span {
+    width: 7px;
+    height: 7px;
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    background: var(--cobalt);
+    opacity: 0.55;
+  }
+
+  .drip span:nth-child(2) { opacity: 0.8; }
+  .drip span:nth-child(3) { opacity: 0.55; }
+
+  /* ---------- footer ---------- */
+
+  footer {
+    margin-top: clamp(2.5rem, 6vw, 3.5rem);
+    border-top: 2px solid var(--cobalt);
+    padding-top: 1.25rem;
+    text-align: center;
+    font-size: 0.88rem;
+    color: var(--ink-muted);
+  }
+
+  footer p { margin: 0.3rem 0; }
+
+  footer a {
+    color: var(--cobalt);
+    font-weight: 600;
+    text-decoration: none;
+    border-bottom: 1px dotted var(--cobalt-soft);
+  }
+
+  footer a:hover { color: var(--seal); border-bottom-color: var(--seal); }
+  footer a:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 3px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+
+  /* ---------- print ---------- */
+
+  @media print {
+    html, body { background: var(--sua); padding: 0; }
+    .card { max-width: none; border: none; box-shadow: none; padding: 0.5cm; }
+    section, .item { break-inside: avoid; }
+    .section-head { break-after: avoid; }
+    .drip { display: none; }
+    .seal, .tag {
+      print-color-adjust: exact;
+      -webkit-print-color-adjust: exact;
+    }
+    footer a { border-bottom: none; }
+    .own-page { break-before: page; }
+    header { padding: 1.1rem 1rem 0.9rem; }
+    h1 { font-size: 2.1rem; }
+    .seal { width: 2.4rem; height: 2.4rem; margin-top: 0.7rem; }
+    section { margin-top: 1.2rem; }
+    .items { gap: 0.7rem 1.6rem; margin-top: 0.8rem; }
+    .item-name { font-size: 0.98rem; }
+    .item-desc, .item-vi { font-size: 0.78rem; }
+    .section-note { margin: 0.35rem 0 0.7rem; font-size: 0.8rem; }
+    body { line-height: 1.45; }
+    footer { margin-top: 1.4rem; padding-top: 0.8rem; }
+  }
+</style>
+</head>
+<body>
+<div class="card">
+
+  <header>
+    <p class="eyebrow">nhà làm · est. quán nhà</p>
+    <h1>CAFE ÔNG THỌ</h1>
+    <p class="tagline">cocktails &middot; sau 5 giờ</p>
+    <span class="seal" aria-hidden="true">THỌ</span>
+  </header>
+
+  <section>
+    <div class="section-head">
+      <h2>COCKTAILS</h2>
+      <span class="section-en">Sau 5 giờ</span>
+    </div>
+    <div class="items">
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Mule</span>
+        </div>
+        <p class="item-desc">Ginger beer, fresh lime, optional Angostura.</p>
+      </div>
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Collins</span>
+        </div>
+        <p class="item-desc">Lemon, turbinado sugar, soda: tall and sparkling.</p>
+      </div>
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Highball</span>
+        </div>
+        <p class="item-desc">Spirit and a carbonated mixer over ice.</p>
+      </div>
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Old Fashioned</span>
+        </div>
+        <p class="item-desc">Sugar, bitters, orange peel, one large cube.</p>
+      </div>
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Sour</span>
+        </div>
+        <p class="item-desc">2 : 1 : 0.75 spirit, citrus, syrup, optional egg white.</p>
+      </div>
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Daiquiri</span>
+        </div>
+        <p class="item-desc">Rum, lime, turbinado sugar, shaken hard and served up.</p>
+      </div>
+      <div class="item">
+        <div class="item-line">
+          <span class="item-name">Sidecar</span>
+        </div>
+        <p class="item-desc">Spirit, orange liqueur, and citrus to match.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <p>nhà làm &middot; made in house</p>
+    <p><a href="menu.html">The Drink Menu</a> &middot; <a href="kitchen.html">The Kitchen Menu</a></p>
+  </footer>
+
+</div>
+</body>
+</html>
