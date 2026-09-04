@@ -1,6 +1,6 @@
 # PRD: Cafe Ông Thọ Ordering System
 
-Version 2.0 · 2026-09-03 · Status: requirements, pending solution review
+Version 2.1 · 2026-09-04 · Status: requirements, pending solution review
 
 ## 1. Overview
 
@@ -16,6 +16,7 @@ A locally run ordering system for the home cafe behind the `recipes` repository 
 |------|--------|-------|
 | Guest | Personal phone, ordering surface | Browse menu, customize and place an order, learn when the drink is ready, reorder past drinks |
 | Barista | Phone or tablet, queue surface | See new orders the moment they arrive, work the queue in order, mark drinks done or cancel |
+| Public visitor | Any device, the menus site at `thodha.github.io/cafe` | Browse the drinks, food, and bar menus read-only at a public URL; no ordering, no interaction with the local system |
 
 No authentication: this is a trusted household network. The guest's device is the guest's identity (FR-8).
 
@@ -29,27 +30,28 @@ No authentication: this is a trusted household network. The guest's device is th
 - Per-device order history with one-tap reorder
 - Orders persist across restarts and across container replacement
 - The whole system starts with one command, in both a plain and a containerized mode
+- The menu is generated and has a public home: the deploy pulls drinks from the recipes repository, generates the drinks menu, and republishes the site on this repository's GitHub Pages on every push to `main`, with no manual publication step
 
 **Non-Goals:**
 
 - Pricing and payments: the source menu publishes no prices, so v1 carries none
-- Kitchen food (`kitchen.html`) and cocktails (`bar.html`): drinks only
-- Authentication, multi-staff order claiming, cloud deployment
+- Ordering kitchen food (`kitchen.html`) and cocktails (`bar.html`): ordering is drinks only; the two pages are still published on the menus site (FR-12)
+- Authentication, multi-staff order claiming, cloud deployment of the ordering system (the menus site is static browsing only, FR-12)
 - Push notifications that reach a closed browser tab
 - Order editing after placement, i18n
 
 ## 4. Menu Scope and Customization
 
-Source of truth: `../recipes`. The orderable set is the five drink sections of `menu.html` (Cà Phê, Mát-cha, Trà, Giải Khát, Kem) with per-drink rules from `cafe.md`. The Kem section's cold foams appear both as standalone drinks and as modifiers on other drinks.
+Source of truth: `menu/menu.html`, enriched as the machine-readable single source. Category sections carry `data-category-id`, item divs carry `data-id` and, when applicable, `data-modifier-groups`, and the page embeds one `<script type="application/json" id="cafe-menu-data">` block carrying version, orderRules, categories, and modifierGroups. `menu/menu.json` is generated from it on demand (`make menu`); hand-editing `menu.json` is prohibited. The orderable set is its five drink sections (Cà Phê, Mát-cha, Trà, Giải Khát, Kem). The Kem section's cold foams appear both as standalone drinks and as modifiers on other drinks.
 
-Each menu item carries: Vietnamese name, English description, hot/iced availability from the nóng/đá tags, its allowed customization dimensions, and an optional photo reference. Item photos do not exist yet; they will be added gradually over time, and the menu must accommodate them without schema or layout changes.
+Each menu item carries: Vietnamese name, English description, hot/iced availability from the nóng/đá tags or an explicit `data-temperatures` attribute, its allowed customization dimensions, and an optional photo reference. Item photos do not exist yet; they will be added gradually over time, and the menu must accommodate them without schema or layout changes.
 
 **Customization model (frozen for v1):**
 
 | Dimension | Rules |
 |-----------|-------|
 | Temperature | Limited to the item's offered options (hot, iced, or both) |
-| Milk | Options vary per item and per temperature where `cafe.md` varies them (example: Matcha Sữa hot is whole or oat; iced adds cream and half-and-half builds) |
+| Milk | Options vary per item and per temperature where `../recipes/cafe.md` varies them (example: Matcha Sữa hot is whole or oat; iced adds cream and half-and-half builds) |
 | Sweetener type | Condensed milk or turbinado syrup, where the recipe offers a choice |
 | Sweetness level | Standard scale (full, 75%, 50%, 25%, none) |
 | Cold foam | Offered only when temperature is iced; any of the foam builds |
@@ -58,7 +60,7 @@ Each menu item carries: Vietnamese name, English description, hot/iced availabil
 
 ## 5. Functional Requirements
 
-**FR-1 Menu browsing.** The ordering surface renders the five sections from menu data, mobile-first and usable at 360 pixels wide, with the visual identity of the existing `menu.html` (cream and cobalt palette, Bungee display, Lora names, Be Vietnam Pro body, nóng/đá pill tags). Item cards show the photo when present and a styled on-brand placeholder when absent; adding photos later must not shift layout.
+**FR-1 Menu browsing.** The ordering surface renders the five sections from menu data, mobile-first and usable at 360 pixels wide, with the visual identity of the existing `menu/menu.html` (cream and cobalt palette, Bungee display, Lora names, Be Vietnam Pro body, nóng/đá pill tags). Item cards show the photo when present and a styled on-brand placeholder when absent; adding photos later must not shift layout.
 
 **FR-2 Drink customizer.** Tapping an item opens a customizer limited to that item's rules: temperature choices from the item's offered set, cold foam only on iced, milk and sweetener groups filtered to the item's allowance. Identical drinks with different customizations are distinct cart lines; each line stores the full selection snapshot.
 
@@ -80,11 +82,14 @@ Each menu item carries: Vietnamese name, English description, hot/iced availabil
 
 **FR-11 Operation.** In plain mode, one command starts the whole system. In containerized mode, `docker compose up --build` from a clean checkout starts the whole system. Both modes serve everything from one origin on the local network.
 
+**FR-12 Public menus site.** Two generation pipelines serve the cafe. The ordering menu is generated, not hand-maintained: `make menu` derives `menu/menu.json` from the enriched `menu/menu.html` (section 4). Separately, the public site at `thodha.github.io/cafe` is generated by the deploy: a GitHub Actions workflow pulls drinks from the `ThoDHa/recipes` repository (`cafe.md`), renders the drinks menu page through templates held in this repository, ships `kitchen.html` and `bar.html` as-is, and publishes an index linking the three. Any drink added to recipes appears on the site at the next deployment with no change to this repository; a drink-like recipes section the generator cannot place fails the build loudly rather than silently. The site is static browsing only; ordering stays drinks-only on the local network.
+
 ## 6. Verification Requirements
 
 - All order logic (validation, transitions, numbering, history, reorder) is covered by automated tests, written before the implementation they verify
 - The menu data passes automated integrity checks (every referenced option exists, every item has at least one temperature, photo references match the agreed convention)
 - The live flows are verified end to end across two real browsers: order placed on the guest surface appears on the barista surface within 2 seconds without refresh, status changes reflect on both surfaces, and both restart-persistence guarantees hold
+- The menus site deploys automatically: a push to `main` publishes the current menus, the generated drinks menu reflects the recipes repository's drinks, and the generated pages carry no ordering artifacts (data attributes or embedded JSON) (FR-12)
 
 ## 7. Open Decisions (resolved in the design review)
 
