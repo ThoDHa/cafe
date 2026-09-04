@@ -25,6 +25,8 @@ jobs:
           path: recipes
       - uses: astral-sh/setup-uv@v5
       - name: Run generator tests
+        env:
+          RECIPES_CAFE: recipes/cafe.md
         run: uv run --with pytest --with weasyprint pytest site/ -q
       - name: Generate menus site
         run: uv run --with weasyprint python site/generate.py --recipes recipes/cafe.md

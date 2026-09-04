@@ -3,6 +3,7 @@
 Run: uv run --with pytest pytest site/ -q
 """
 
+import os
 import re
 import sys
 import textwrap
@@ -10,7 +11,9 @@ from pathlib import Path
 
 SITE_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SITE_DIR.parent
-RECIPES_CAFE = REPO_ROOT.parent / "recipes" / "cafe.md"
+RECIPES_CAFE = Path(
+    os.environ.get("RECIPES_CAFE", REPO_ROOT.parent / "recipes" / "cafe.md")
+)
 MENU_JSON = REPO_ROOT / "menu" / "menu.json"
 
 sys.path.insert(0, str(SITE_DIR))
