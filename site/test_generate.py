@@ -19,11 +19,16 @@ REPO_ROOT = SITE_DIR.parent
 RECIPES_CAFE = Path(
     os.environ.get("RECIPES_CAFE", REPO_ROOT.parent / "recipes" / "cafe.md")
 )
+COCKTAILS_MD = RECIPES_CAFE.parent / "cocktails.md"
 MENU_JSON = REPO_ROOT / "menu" / "menu.json"
 
 sys.path.insert(0, str(SITE_DIR))
 
 import generate  # noqa: E402
+
+sys.path.insert(0, str(REPO_ROOT / "menu"))
+
+import menu_source  # noqa: E402
 
 FIXTURE = textwrap.dedent(
     """
@@ -333,6 +338,177 @@ class TestGenericPickup:
         assert all(s.id in target_ids for s in menu.sections)
 
 
+COCKTAILS_FIXTURE = textwrap.dedent(
+    """
+    # Cocktails
+
+    Cocktail templates built from the modular drink system.
+
+    ## Mule
+
+    A flexible highball built from spirit, ginger beer, and lime.
+
+    - 60g spirit (2 fl oz)
+    - 120g ginger beer (4 fl oz)
+    - [Angostura Bitters](cafe.md#angostura-bitters), optional
+
+    ### Instructions
+
+    1. Fill a mug with ice.
+
+    ## Highball
+
+    - 60g spirit (2 fl oz)
+    - 120-150g mixer (4-5 fl oz)
+
+    ### Instructions
+
+    1. Fill a highball glass with ice.
+
+    ## Old Fashioned
+
+    Built from spirit, [Turbinado Simple Syrup](cafe.md#turbinado-simple-syrup), and bitters.
+
+    - 60g spirit (2 fl oz)
+    - 2-3 dashes bitters
+
+    ### Instructions
+
+    1. Stir until chilled.
+
+    ---
+
+    ## Construction Rules
+
+    **Spirit + ginger beer + lime → [Mule](#mule)**
+    """
+)
+
+
+def parsed_cocktails_fixture():
+    return menu_source.parse_cocktails(COCKTAILS_FIXTURE)
+
+
+class TestCocktailParser:
+    def test_families_are_extracted_in_file_order(self):
+        families = parsed_cocktails_fixture()
+        assert [i.name_en for i in families] == ["Mule", "Highball", "Old Fashioned"]
+
+    def test_intro_paragraph_is_not_a_family(self):
+        families = parsed_cocktails_fixture()
+        names = [i.name_en for i in families]
+        assert "Cocktails" not in names
+        assert all(
+            "modular drink system" not in (i.description or "") for i in families
+        )
+
+    def test_description_is_first_paragraph_of_the_family(self):
+        mule = parsed_cocktails_fixture()[0]
+        assert mule.description == (
+            "A flexible highball built from spirit, ginger beer, and lime."
+        )
+
+    def test_description_links_are_stripped(self):
+        old_fashioned = parsed_cocktails_fixture()[2]
+        assert old_fashioned.description == (
+            "Built from spirit, Turbinado Simple Syrup, and bitters."
+        )
+
+    def test_family_without_description_yields_none(self):
+        highball = parsed_cocktails_fixture()[1]
+        assert highball.description is None
+
+    def test_instructions_heading_is_not_a_description(self):
+        for family in parsed_cocktails_fixture():
+            assert family.description != "Instructions"
+
+    def test_construction_rules_is_never_a_family(self):
+        names = [i.name_en for i in parsed_cocktails_fixture()]
+        assert "Construction Rules" not in names
+
+    def test_families_carry_no_temperature_or_vietnamese_machinery(self):
+        for family in parsed_cocktails_fixture():
+            assert family.temperatures == []
+            assert family.name_vi is None
+
+    def test_new_family_is_picked_up_without_registration(self):
+        new_family = textwrap.dedent(
+            """
+            ## Brand New Template Never Seen Before
+
+            A template added to recipes after the generator was written.
+
+            - 60g something
+
+            ### Instructions
+
+            1. Combine.
+
+            """
+        ).lstrip("\n")
+        fixture = COCKTAILS_FIXTURE.replace("## Highball", new_family + "## Highball")
+        families = menu_source.parse_cocktails(fixture)
+        names = [i.name_en for i in families]
+        assert "Brand New Template Never Seen Before" in names
+        new_item = next(i for i in families if "Brand New" in i.name_en)
+        assert new_item.description == (
+            "A template added to recipes after the generator was written."
+        )
+
+
+BAR_OVERRIDES = {
+    "version": 1,
+    "bar": {
+        "items": {
+            "Mule": {"description": "Ginger beer, fresh lime, optional Angostura."}
+        }
+    },
+}
+
+
+class TestBarOverrides:
+    def test_description_override_replaces_recipes_prose(self):
+        items = menu_source.build_bar_items(COCKTAILS_FIXTURE, BAR_OVERRIDES)
+        assert items[0].description == "Ginger beer, fresh lime, optional Angostura."
+
+    def test_unoverridden_family_keeps_recipes_prose(self):
+        items = menu_source.build_bar_items(COCKTAILS_FIXTURE, BAR_OVERRIDES)
+        assert items[2].description == (
+            "Built from spirit, Turbinado Simple Syrup, and bitters."
+        )
+
+    def test_name_override_applies(self):
+        config = {"bar": {"items": {"Mule": {"name": "Moscow Mule"}}}}
+        items = menu_source.build_bar_items(COCKTAILS_FIXTURE, config)
+        assert items[0].name_en == "Moscow Mule"
+
+    def test_unknown_override_key_fails_loudly(self):
+        config = {"bar": {"items": {"Mule": {"temperatures": ["iced"]}}}}
+        try:
+            menu_source.build_bar_items(COCKTAILS_FIXTURE, config)
+        except menu_source.SiteOverridesError as exc:
+            assert "temperatures" in str(exc)
+        else:
+            raise AssertionError("expected SiteOverridesError")
+
+    def test_override_naming_unknown_family_fails_loudly(self):
+        config = {"bar": {"items": {"Margarita": {"description": "not on the recipes"}}}}
+        try:
+            menu_source.build_bar_items(COCKTAILS_FIXTURE, config)
+        except menu_source.SiteOverridesError as exc:
+            assert "Margarita" in str(exc)
+        else:
+            raise AssertionError("expected SiteOverridesError")
+
+    def test_config_without_bar_object_fails_loudly(self):
+        try:
+            menu_source.build_bar_items(COCKTAILS_FIXTURE, {})
+        except menu_source.SiteOverridesError as exc:
+            assert "bar" in str(exc)
+        else:
+            raise AssertionError("expected SiteOverridesError")
+
+
 class TestRealRecipesFile:
     def test_real_file_exists(self):
         assert RECIPES_CAFE.is_file(), "sibling recipes checkout missing"
@@ -422,6 +598,37 @@ class TestRealRecipesFile:
         assert {s.id: s.note for s in menu.sections if s.note} == expected
 
 
+class TestRealCocktailsFile:
+    def test_real_file_exists(self):
+        assert COCKTAILS_MD.is_file(), "cocktails.md missing beside the recipes cafe.md"
+
+    def test_real_family_minimum_count(self):
+        families = menu_source.parse_cocktails(COCKTAILS_MD.read_text())
+        assert len(families) >= 7, len(families)
+
+    def test_real_spot_family_names(self):
+        names = [i.name_en for i in menu_source.parse_cocktails(COCKTAILS_MD.read_text())]
+        for name in [
+            "Mule",
+            "Collins",
+            "Highball",
+            "Old Fashioned",
+            "Sour",
+            "Daiquiri",
+            "Sidecar",
+        ]:
+            assert name in names
+
+    def test_real_construction_rules_is_not_a_family(self):
+        names = [i.name_en for i in menu_source.parse_cocktails(COCKTAILS_MD.read_text())]
+        assert "Construction Rules" not in names
+
+    def test_real_families_have_descriptions(self):
+        families = menu_source.parse_cocktails(COCKTAILS_MD.read_text())
+        missing = [i.name_en for i in families if not i.description]
+        assert missing == []
+
+
 class TestRender:
     def test_render_contains_sections_and_items(self):
         menu = generate.parse_menu(RECIPES_CAFE.read_text())
@@ -507,6 +714,40 @@ class TestCompactRender:
             "bản rút gọn",
         ]:
             assert needle in page, f"missing {needle!r}"
+
+
+class TestBarRender:
+    def _bar_items(self):
+        return menu_source.build_bar_items(
+            COCKTAILS_MD.read_text(), generate.load_site_overrides()
+        )
+
+    def test_render_contains_cocktails_head_and_families(self):
+        page = generate.render_bar_page(self._bar_items())
+        for needle in [">COCKTAILS<", ">Mule<", ">Old Fashioned<", ">Sidecar<"]:
+            assert needle in page, f"missing {needle!r}"
+
+    def test_render_carries_overridden_descriptions(self):
+        page = generate.render_bar_page(self._bar_items())
+        assert "Ginger beer, fresh lime, optional Angostura." in page
+
+    def test_render_has_no_pills_or_ordering_artifacts(self):
+        page = generate.render_bar_page(self._bar_items())
+        assert '<span class="tag' not in page
+        assert "data-id" not in page
+        assert "data-temperatures" not in page
+        assert "application/json" not in page
+
+    def test_render_keeps_footer_links(self):
+        page = generate.render_bar_page(self._bar_items())
+        assert '<a href="menu.html">' in page
+        assert '<a href="kitchen.html">' in page
+
+    def test_render_escapes_item_text(self):
+        items = self._bar_items()
+        items[0].description = "<script>alert(1)</script>"
+        page = generate.render_bar_page(items)
+        assert "<script>alert" not in page
 
 
 class TestPrintFit:

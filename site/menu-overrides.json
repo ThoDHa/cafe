@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "bar": {
+    "items": {
+      "Mule": {
+        "description": "Ginger beer, fresh lime, optional Angostura."
+      },
+      "Collins": {
+        "description": "Lemon, turbinado sugar, soda: tall and sparkling."
+      },
+      "Highball": {
+        "description": "Spirit and a carbonated mixer over ice."
+      },
+      "Old Fashioned": {
+        "description": "Sugar, bitters, orange peel, one large cube."
+      },
+      "Sour": {
+        "description": "2 : 1 : 0.75 spirit, citrus, syrup, optional egg white."
+      },
+      "Daiquiri": {
+        "description": "Rum, lime, turbinado sugar, shaken hard and served up."
+      },
+      "Sidecar": {
+        "description": "Spirit, orange liqueur, and citrus to match."
+      }
+    }
+  },
+  "kitchen": {}
+}

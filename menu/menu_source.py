@@ -87,6 +87,10 @@ STRUCTURAL_HEADINGS = {
     "Dirty Version",
 }
 
+KNOWN_NON_COCKTAIL_SECTIONS = {
+    "Construction Rules",
+}
+
 SERVE_CUE_PARAGRAPHS = {
     "served hot or iced",
     "hot or iced",
@@ -107,6 +111,7 @@ ICE_WORD_RE = re.compile(r"\bice\b", re.IGNORECASE)
 ORDERING_OVERRIDE_KEYS = frozenset(
     {"id", "name", "nameVi", "description", "imagePath", "temperatures", "modifierGroupIds"}
 )
+COCKTAIL_OVERRIDE_KEYS = frozenset({"name", "nameVi", "description"})
 ORDERING_DEFAULT_GROUP_KEYS = frozenset({"base", "icedOnly", "byCategory"})
 
 
@@ -116,6 +121,10 @@ class UnmappedSectionError(Exception):
 
 class OrderingConfigError(Exception):
     """Raised when the ordering enrichment config contradicts the recipes."""
+
+
+class SiteOverridesError(Exception):
+    """Raised when the site overrides config contradicts the recipes."""
 
 
 @dataclass
@@ -348,6 +357,88 @@ def parse_foam_section(lines: list[str]) -> list[Item]:
                 name_vi=FOAM_VIETNAMESE_NAMES.get(build),
                 description=foam_description(build, lines),
                 temperatures=["iced"],
+            )
+        )
+    return items
+
+
+def parse_cocktails(text: str) -> list[Item]:
+    """Extract the cocktail template families from recipes cocktails.md.
+
+    Every top-level `##` heading is a family: the name is the heading and
+    the first paragraph under it is the menu description, with the `###`
+    instructions never contributing. The intro paragraph before the first
+    `##` heading belongs to no family, and KNOWN_NON_COCKTAIL_SECTIONS
+    registers the structural sections. A family the recipes add later is
+    picked up with no registration.
+    """
+    families: list[Item] = []
+    for title, lines in split_top_sections(text).items():
+        if title in KNOWN_NON_COCKTAIL_SECTIONS:
+            continue
+        families.append(
+            Item(
+                name_en=title,
+                name_vi=None,
+                description=first_paragraph_after_name(blocks(lines)),
+                temperatures=[],
+            )
+        )
+    return families
+
+
+def _bar_overrides(config: dict) -> dict:
+    bar_config = config.get("bar")
+    if not isinstance(bar_config, dict):
+        raise SiteOverridesError(
+            "the overrides config needs a 'bar' object with an 'items' mapping"
+        )
+    overrides = bar_config.get("items", {})
+    if not isinstance(overrides, dict) or not all(
+        isinstance(entry, dict) for entry in overrides.values()
+    ):
+        raise SiteOverridesError(
+            "the overrides config 'bar.items' must be an object mapping "
+            "cocktail family names to override objects"
+        )
+    for family_name, entry in overrides.items():
+        unknown = set(entry) - COCKTAIL_OVERRIDE_KEYS
+        if unknown:
+            raise SiteOverridesError(
+                f"the bar overrides entry for {family_name!r} has unknown keys "
+                f"{sorted(unknown)}: expected only {sorted(COCKTAIL_OVERRIDE_KEYS)}"
+            )
+    return overrides
+
+
+def build_bar_items(text: str, config: dict) -> list[Item]:
+    """Build the bar menu items from the parsed cocktails plus the site
+    overrides config.
+
+    The config's 'bar.items' object keys families by their recipes name
+    and may carry name, nameVi, and description; anything omitted falls
+    back to what the recipes derivation yields, so a family added to
+    recipes appears with its prose description and no config entry.
+    Overrides naming families the recipes no longer define fail loudly.
+    """
+    overrides = _bar_overrides(config)
+    families = parse_cocktails(text)
+    defined = {family.name_en for family in families}
+    unmatched = sorted(set(overrides) - defined)
+    if unmatched:
+        raise SiteOverridesError(
+            "the bar overrides config names families the recipes do not "
+            f"define: {unmatched}"
+        )
+    items: list[Item] = []
+    for family in families:
+        entry = overrides.get(family.name_en, {})
+        items.append(
+            Item(
+                name_en=entry.get("name") or family.name_en,
+                name_vi=entry.get("nameVi"),
+                description=entry.get("description") or family.description,
+                temperatures=[],
             )
         )
     return items

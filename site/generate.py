@@ -5,8 +5,11 @@ The drinks menu is generated from recipes/cafe.md through the shared
 parsing core in menu/menu_source.py: the four drink sections plus the
 cold-foam builds map onto the five menu sections, and items are derived
 entirely from the file, so a drink added to recipes appears on the next
-deploy with no generator change. This module keeps only the site's own
-concerns: section blurbs, templates, rendering, and the print-budget fit.
+deploy with no generator change. The bar menu is generated the same way
+from recipes/cocktails.md: the template families become the COCKTAILS
+section, with curated copy in site/menu-overrides.json. This module
+keeps only the site's own concerns: section blurbs, templates,
+rendering, and the print-budget fit.
 
 Usage: uv run --with weasyprint python site/generate.py [--recipes PATH] [--out DIR]
 
@@ -38,6 +41,7 @@ DEFAULT_RECIPES = REPO_ROOT.parent / "recipes" / "cafe.md"
 DEFAULT_OUT = SITE_DIR / "public"
 TEMPLATES_DIR = SITE_DIR / "templates"
 MENU_SOURCE_DIR = MENU_DIR
+DEFAULT_OVERRIDES = SITE_DIR / "menu-overrides.json"
 
 sys.path.insert(0, str(MENU_DIR))
 
@@ -49,6 +53,7 @@ from menu_source import (  # noqa: E402,F401
     TEMPERATURE_OVERRIDES,
     UnmappedSectionError,
     VIETNAMESE_NAME_OVERRIDES,
+    build_bar_items,
     strip_markdown,
 )
 
@@ -186,13 +191,22 @@ def render_pills(temperatures: list[str]) -> str:
     return f'<span class="tags">{"".join(pills)}</span>'
 
 
+def item_lead(item: Item) -> str:
+    return item.name_vi or item.name_en
+
+
+def shows_english_subtitle(item: Item) -> bool:
+    return bool(
+        item.name_vi and item.name_en and item.name_en.lower() != item.name_vi.lower()
+    )
+
+
 def render_item(item: Item, show_pills: bool) -> str:
-    lead = item.name_vi or item.name_en
-    line = f'<span class="item-name">{html.escape(lead)}</span>'
+    line = f'<span class="item-name">{html.escape(item_lead(item))}</span>'
     if show_pills:
         line += render_pills(item.temperatures)
     parts = [f'<div class="item">', f'  <div class="item-line">{line}</div>']
-    if item.name_vi and item.name_en and item.name_en.lower() != item.name_vi.lower():
+    if shows_english_subtitle(item):
         parts.append(f'  <p class="item-vi">{html.escape(item.name_en)}</p>')
     if item.description:
         parts.append(f'  <p class="item-desc">{html.escape(item.description)}</p>')
@@ -232,6 +246,46 @@ def render_compact_page(menu: Menu) -> str:
     template = (TEMPLATES_DIR / "compact.html").read_text()
     sections_html = "\n".join(render_section(section) for section in menu.sections)
     return template.replace("<!--SECTIONS-->", sections_html)
+
+
+def load_site_overrides(path: Path = DEFAULT_OVERRIDES) -> dict:
+    try:
+        return json.loads(path.read_text())
+    except FileNotFoundError as exc:
+        raise RuntimeError(
+            f"missing {path}; the generated pages need their overrides config"
+        ) from exc
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"invalid JSON in {path}: {exc}") from exc
+
+
+def render_bar_page(items: list[Item]) -> str:
+    """Render the bar page with the design reference's exact item formatting.
+
+    The bar chrome carries the drinks markup vocabulary minus the pills;
+    the indentation mirrors the former hand page (recoverable from git
+    history) so the generated body stays byte-identical to it.
+    """
+
+    def render_bar_item(item: Item) -> str:
+        parts = [
+            '      <div class="item">',
+            '        <div class="item-line">',
+            f'          <span class="item-name">{html.escape(item_lead(item))}</span>',
+            "        </div>",
+        ]
+        if shows_english_subtitle(item):
+            parts.append(f'        <p class="item-vi">{html.escape(item.name_en)}</p>')
+        if item.description:
+            parts.append(
+                f'        <p class="item-desc">{html.escape(item.description)}</p>'
+            )
+        parts.append("      </div>")
+        return "\n".join(parts)
+
+    template = (TEMPLATES_DIR / "bar.html").read_text()
+    items_html = "\n".join(render_bar_item(item) for item in items)
+    return template.replace("<!--ITEMS-->", items_html)
 
 
 def inject_print_root(page_html: str, root_px: float) -> str:
@@ -311,9 +365,22 @@ def fit_print_root(
 
 
 def build_site(
-    recipes_path: Path, out_dir: Path, fit_pages: bool = True
+    recipes_path: Path,
+    out_dir: Path,
+    fit_pages: bool = True,
+    overrides: dict | None = None,
 ) -> Menu:
-    menu = parse_menu(recipes_path.read_text())
+    recipes_text = recipes_path.read_text()
+    menu = parse_menu(recipes_text)
+    if overrides is None:
+        overrides = load_site_overrides()
+    cocktails_path = recipes_path.parent / "cocktails.md"
+    if not cocktails_path.is_file():
+        raise RuntimeError(
+            f"missing {cocktails_path}; the bar page is generated from it"
+        )
+    bar_items = build_bar_items(cocktails_path.read_text(), overrides)
+    print(f"bar: {len(bar_items)} families from {cocktails_path.name}")
     out_dir.mkdir(parents=True, exist_ok=True)
     scaler_asset = MENU_SOURCE_DIR.joinpath("assets", PRINT_SCALER_ASSET_NAME)
     if not scaler_asset.is_file():
@@ -341,19 +408,22 @@ def build_site(
     compact_page = inject_print_scaler(compact_page, "menu/compact.html")
     (out_dir / "menu").mkdir(exist_ok=True)
     (out_dir / "menu" / "compact.html").write_text(compact_page)
-    copied_page_budgets = {
-        "kitchen.html": PRINT_PAGE_BUDGET,
-        "bar.html": BAR_PAGE_BUDGET,
-    }
-    for page in ("kitchen.html", "bar.html"):
-        page_html = (MENU_SOURCE_DIR / page).read_text()
-        if fit_pages:
-            page_html, page_root = fit_print_root(
-                page_html, label=page, max_pages=copied_page_budgets[page]
-            )
-            fitted.append((page, page_root))
-        page_html = inject_print_scaler(page_html, page)
-        (out_dir / page).write_text(page_html)
+    bar_page = render_bar_page(bar_items)
+    if fit_pages:
+        bar_page, bar_root = fit_print_root(
+            bar_page, label="bar.html", max_pages=BAR_PAGE_BUDGET
+        )
+        fitted.append(("bar.html", bar_root))
+    bar_page = inject_print_scaler(bar_page, "bar.html")
+    (out_dir / "bar.html").write_text(bar_page)
+    kitchen_page = (MENU_SOURCE_DIR / "kitchen.html").read_text()
+    if fit_pages:
+        kitchen_page, kitchen_root = fit_print_root(
+            kitchen_page, label="kitchen.html", max_pages=PRINT_PAGE_BUDGET
+        )
+        fitted.append(("kitchen.html", kitchen_root))
+    kitchen_page = inject_print_scaler(kitchen_page, "kitchen.html")
+    (out_dir / "kitchen.html").write_text(kitchen_page)
     assets_out = out_dir / "assets"
     assets_out.mkdir(exist_ok=True)
     for asset in MENU_SOURCE_DIR.joinpath("assets").iterdir():
