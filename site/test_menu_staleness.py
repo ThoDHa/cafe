@@ -30,6 +30,7 @@ MENUDATA_EXPORT = "export const menuDocument"
 sys.path.insert(0, str(MENU_DIR))
 
 import menu_source  # noqa: E402
+import generate_menudata  # noqa: E402
 
 BLOCK_KEYS = ("version", "orderRules", "categories", "modifierGroups")
 ITEM_FIELDS = (
@@ -147,16 +148,11 @@ def with_type_defaults(document: dict) -> dict:
 
     The generated MenuDocument type makes imagePath, defaultOptionId and
     defaultByTemperature non-optional nullables, so menuData.ts spells
-    them out as nulls; apply the same defaults to both sides before
-    comparing.
+    them out as nulls; apply the generator's normalization to both sides
+    before comparing.
     """
     filled = json.loads(json.dumps(document))
-    for group in filled.get("modifierGroups", []):
-        group.setdefault("defaultOptionId", None)
-        group.setdefault("defaultByTemperature", None)
-    for item in filled.get("items", []):
-        item.setdefault("imagePath", None)
-    return filled
+    return generate_menudata.normalize(filled)
 
 
 def test_menudata_matches_committed_menu() -> None:
@@ -167,8 +163,17 @@ def test_menudata_matches_committed_menu() -> None:
     )
     assert problems == [], (
         f"{MENUDATA_TS.relative_to(REPO_ROOT)} is stale against "
-        "menu/menu.json; regenerate its exported menuDocument object "
-        "literal from menu/menu.json (strict JSON, absent imagePath and "
-        "defaultOptionId/defaultByTemperature written as null):\n"
+        "menu/menu.json; regenerate with `make menudata` "
+        "(menu/generate_menudata.py):\n"
         + "\n".join(f"  - {problem}" for problem in problems)
+    )
+
+
+def test_menudata_is_byte_identical_to_generator_output() -> None:
+    document = json.loads((MENU_DIR / "menu.json").read_text(encoding="utf-8"))
+    expected = generate_menudata.render(document)
+    actual = MENUDATA_TS.read_text(encoding="utf-8")
+    assert actual == expected, (
+        f"{MENUDATA_TS.relative_to(REPO_ROOT)} does not match the output of "
+        "menu/generate_menudata.py; regenerate with `make menudata`"
     )

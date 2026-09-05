@@ -1,7 +1,7 @@
-.PHONY: help dev test build start contract menu site test-site
+.PHONY: help dev test build start contract menu menudata site test-site
 
 help:
-	@echo "targets: dev test build start contract menu site test-site"
+	@echo "targets: dev test build start contract menu menudata site test-site"
 
 dev:
 	$(MAKE) -C server dev & $(MAKE) -C web dev & wait
@@ -22,6 +22,9 @@ contract:
 
 menu:
 	$(MAKE) -C server generate-menu
+
+menudata:
+	uv run python menu/generate_menudata.py
 
 site:
 	uv run --with weasyprint python site/generate.py
