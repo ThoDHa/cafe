@@ -28,6 +28,7 @@ SECTION_MAP = {
     "Refreshers": ("giai-khat", "Giải Khát", "Refreshers"),
 }
 KEM_SECTION = ("kem", "Kem", "Cold Foams")
+CATEGORY_ID_PREFIXES = {"kem": "kem"}
 
 KNOWN_NON_DRINK_SECTIONS = {
     "Table of Contents",
@@ -440,6 +441,19 @@ def _canonical_temperatures(source: str, values: list[str]) -> list[str]:
     return [temperature for temperature in TEMPERATURE_ORDER if temperature in values]
 
 
+def _default_item_id(section: Section, drink: Item) -> str:
+    """Derive the id for a drink whose overrides config carries none.
+
+    A kem build must keep the kem-* convention its consumers and asset
+    paths expect even when the recipes carry no Vietnamese name for it,
+    so categories listed in CATEGORY_ID_PREFIXES prefix the English-name
+    slug; every other category keeps the plain slug.
+    """
+    slug = slugify(drink.name_en)
+    prefix = CATEGORY_ID_PREFIXES.get(section.id)
+    return f"{prefix}-{slug}" if prefix else slug
+
+
 def build_ordering_items(recipes_text: str, config: dict) -> list[dict]:
     """Build the orderable menu items from the parsed recipes plus the
     ordering enrichment config.
@@ -467,7 +481,7 @@ def build_ordering_items(recipes_text: str, config: dict) -> list[dict]:
         for drink in section.items:
             defined_drinks.add(drink.name_en)
             override = overrides.get(drink.name_en, {})
-            item_id = override.get("id") or slugify(drink.name_en)
+            item_id = override.get("id") or _default_item_id(section, drink)
             if item_id in seen_ids:
                 raise OrderingConfigError(
                     f"items {drink.name_en!r} and an earlier drink both resolve to "

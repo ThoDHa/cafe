@@ -118,6 +118,27 @@ DESCRIPTION_LESS_RECIPES = textwrap.dedent(
     """
 )
 
+UNNAMED_FOAM_BUILD_RECIPES = textwrap.dedent(
+    """
+    # Cafe Fixture
+
+    ## Cold Foams
+
+    ### Foam Matrix
+
+    | Build | Flavor Component | Prep |
+    |---|---|---|
+    | [Honey](#honey-cold-foam) | 15g honey | Combine and froth |
+
+    ### Honey Cold Foam
+
+    Honey whisked into sweetened cream.
+
+    - 30g heavy whipping cream
+    - 15g honey
+    """
+)
+
 
 def overrides_config(items: dict | None = None) -> dict:
     return {
@@ -193,9 +214,32 @@ def test_iced_derivation_gains_cold_foam_while_hot_does_not() -> None:
 def test_foam_items_default_to_no_modifier_groups() -> None:
     document = build_fixture_document()
     kem = [item for item in document["items"] if item["categoryId"] == "kem"]
-    assert [item["id"] for item in kem] == ["base-foam", "salted-cold-foam"]
+    assert [item["id"] for item in kem] == ["kem-base-foam", "kem-salted-cold-foam"]
     assert all(item["modifierGroupIds"] == [] for item in kem)
     assert all(item["temperatures"] == ["iced"] for item in kem)
+
+
+def test_unnamed_foam_build_derives_a_kem_prefixed_id() -> None:
+    document = build_fixture_document(recipes=UNNAMED_FOAM_BUILD_RECIPES)
+    items = items_by_id(document)
+    assert "kem-honey-cold-foam" in items
+    assert "honey-cold-foam" not in items
+    assert items["kem-honey-cold-foam"]["nameVi"] == "Honey Cold Foam"
+
+
+def test_kem_override_id_still_wins_over_the_derived_default() -> None:
+    document = build_fixture_document(
+        {"Honey Cold Foam": {"id": "kem-mat-ong"}},
+        recipes=UNNAMED_FOAM_BUILD_RECIPES,
+    )
+    items = items_by_id(document)
+    assert "kem-mat-ong" in items
+    assert "kem-honey-cold-foam" not in items
+
+
+def test_kem_default_colliding_with_another_id_fails_loudly() -> None:
+    with pytest.raises(MenuGenerationError, match="both resolve to.*'kem-base-foam'"):
+        build_fixture_document({"Cortado": {"id": "kem-base-foam"}})
 
 
 def test_overrides_replace_the_derived_fields() -> None:
