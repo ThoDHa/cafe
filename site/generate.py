@@ -351,6 +351,13 @@ def inject_print_root(page_html: str, root_px: float) -> str:
 def inject_print_scaler(page_html: str, page_name: str) -> str:
     prefix = "../" if "/" in page_name else ""
     payload = json.dumps(PRINT_SCALER_CONFIGS[page_name], separators=(",", ":"))
+    # The attribute is single-quoted: escape &, <, > and single quotes so a
+    # future config cannot break out, while today's constants stay
+    # byte-identical (they carry none of those characters; the browser
+    # decodes entities, so JSON.parse still sees the raw payload). Plain
+    # html.escape(quote=True) would also rewrite the payload's double
+    # quotes and change the built pages.
+    payload = html.escape(payload, quote=False).replace("'", "&#x27;")
     tag = (
         f'<script defer src="{prefix}assets/{PRINT_SCALER_ASSET_NAME}" '
         f"data-print-fit='{payload}'></script>"
@@ -383,6 +390,8 @@ def fit_print_root(
     max_pages: int = PRINT_PAGE_BUDGET,
     step: float = PRINT_ROOT_STEP,
 ) -> tuple[str, float | None]:
+    if step <= 0:
+        raise ValueError(f"fit_print_root needs a positive step; got {step}")
     marker = f'id="{PRINT_FIT_STYLE_ID}"'
     had_marker = marker in page_html
     root = PRINT_ROOT_DEFAULT

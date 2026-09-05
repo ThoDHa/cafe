@@ -7,6 +7,9 @@
  * page out under its own print styles inside a hidden iframe sized to the
  * Letter page area, then searches for the largest root that keeps the page
  * budget, modelled as a greedy pack of the top-level blocks into pages.
+ * A block's effective height folds in its computed vertical margins;
+ * summed rather than collapsed, this can only overestimate the ink, which
+ * is the safe direction for a budget oracle.
  * Scaling is uniform root-only, so the type ramp, palette, and chrome are
  * untouched. Letter is the binding paper; A4 is taller and keeps its
  * geometric remainder. On any doubt the script does nothing and the
@@ -246,8 +249,17 @@
         if (style.display === "none" || style.position === "fixed") continue;
         var h = el.getBoundingClientRect().height;
         if (!isFinite(h)) return null;
-        blocks.push({ h: h, breakBefore: isForcedBreak(style) });
-        total += h;
+        var marginTop = parseFloat(style.marginTop);
+        var marginBottom = parseFloat(style.marginBottom);
+        if (!isFinite(marginTop) || !isFinite(marginBottom)) return null;
+        // Vertical margins fold into the block: the card's padding keeps
+        // the first margin-top and last margin-bottom live at the page
+        // boundaries, and summing adjacent sibling margins instead of
+        // collapsing them to the max can only overestimate, which is the
+        // safe side for a budget oracle.
+        var effective = h + marginTop + marginBottom;
+        blocks.push({ h: effective, breakBefore: isForcedBreak(style) });
+        total += effective;
       }
       if (blocks.length === 0 || !(total > 0)) return null;
       return {
@@ -274,11 +286,14 @@
       "position:fixed;visibility:hidden;border:0;pointer-events:none;" +
       "left:-200vw;top:0;width:" + Math.floor(geometryInfo.areaWidth) +
       "px;height:" + Math.ceil(geometryInfo.capacity) + "px";
+    // Snapshot before appending: the emulation must not carry the
+    // measurement iframe itself.
+    var snapshot = emulationDocument();
     var loaded = new Promise(function (resolve) {
       frame.addEventListener("load", resolve, { once: true });
     });
     document.body.appendChild(frame);
-    frame.srcdoc = emulationDocument();
+    frame.srcdoc = snapshot;
     return loaded
       .then(function () {
         var doc = frame.contentDocument;

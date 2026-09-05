@@ -588,6 +588,11 @@ def parse_kitchen_index(text: str) -> list[KitchenIndexSection]:
                     section_id, title_vi, title_en = spec
                     current = KitchenIndexSection(section_id, title_vi, title_en, [])
                     sections.append(current)
+            else:
+                # any other heading (levels 1 and 4-6, or a `###` outside
+                # Available Recipes) ends the current group so bullets can
+                # not silently attach to a stale section
+                current = None
             continue
         if current is None:
             continue
@@ -737,6 +742,11 @@ def build_kitchen_menu(
     naming dishes or sections the README does not define, merges whose
     sources are missing or span sections, and order lists that are not a
     permutation of their section's items all fail loudly.
+
+    Kitchen items reuse Item with repurposed fields: name_en carries the
+    display (lead) name as rendered, name_vi the optional subtitle (the
+    English name under a Vietnamese lead, or a gloss like Ra-gu), and
+    temperatures stays empty.
     """
     kitchen = _kitchen_overrides(config)
     index = parse_kitchen_index(readme_text)

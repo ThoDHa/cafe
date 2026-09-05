@@ -707,6 +707,18 @@ class TestKitchenIndex:
         names = [i.name_en for s in kitchen.sections for i in s.items]
         assert "Lobster Bisque Pasta Sauce" not in names
 
+    def test_stray_heading_ends_the_current_group(self):
+        readme = KITCHEN_README_FIXTURE.replace(
+            "- [Cookies](cookies.md) - Modular cookie system",
+            "- [Cookies](cookies.md) - Modular cookie system\n\n"
+            "#### Variants\n\n- [Orphan Dish](orphan.md) - Never placed",
+        )
+        kitchen = menu_source.build_kitchen_menu(
+            readme, kitchen_file_loader, {"kitchen": {}}
+        )
+        desserts = kitchen.sections[-1]
+        assert [i.name_en for i in desserts.items] == ["Cookies"]
+
     def test_bullet_separator_variants_and_annotations(self):
         readme = KITCHEN_README_FIXTURE.replace(
             "- [Bacon Over Congee](bacon_over_congee.md)",
@@ -1433,6 +1445,14 @@ class TestPrintFit:
         assert root == 13.75
         assert "font-size: 13.75px" in fitted
 
+    def test_fit_rejects_non_positive_step(self):
+        try:
+            generate.fit_print_root(self.PAGE, label="x", step=0)
+        except ValueError as exc:
+            assert "step" in str(exc)
+        else:
+            raise AssertionError("expected ValueError")
+
     def test_injection_only_affects_print(self):
         fitted = generate.inject_print_root(self.PAGE, 13.5)
         assert "@media print" in fitted
@@ -1649,6 +1669,18 @@ assert.equal(
 assert.equal(
   solver.estimatePageCount([{ h: 2000, breakBefore: false }], 10, 10, 1000, 0.01),
   3
+);
+
+// boundary margins: with margins folded into block heights, the tail
+// margin counts against the same page's capacity (the measureIn model's
+// boundary case)
+assert.equal(
+  solver.estimatePageCount([{ h: 940 }], 10, 100, 988, 0.01),
+  2
+);
+assert.equal(
+  solver.estimatePageCount([{ h: 860 }], 10, 100, 988, 0.01),
+  1
 );
 
 // a two-page budget keeps a layout the one-page budget must refuse
