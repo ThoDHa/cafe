@@ -97,15 +97,18 @@
 }
 
 .items {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.9rem;
+  columns: 2;
+  column-gap: 0.9rem;
   margin-top: 1rem;
+}
+
+.item-card + .item-card {
+  margin-top: 0.9rem;
 }
 
 @media (max-width: 480px) {
   .items {
-    grid-template-columns: 1fr;
+    columns: 1;
   }
 }
 
@@ -113,6 +116,7 @@
   display: flex;
   gap: 0.75rem;
   align-items: flex-start;
+  break-inside: avoid;
   text-align: left;
   padding: 0.75rem;
   background: var(--sua);
