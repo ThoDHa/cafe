@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 SECTION_MAP = {
@@ -91,6 +92,34 @@ KNOWN_NON_COCKTAIL_SECTIONS = {
     "Construction Rules",
 }
 
+KITCHEN_SECTION_MAP = {
+    "Appetizers": ("khai-vi", "Khai Vị", "Starters"),
+    "Main Dishes": ("mon-chinh", "Món Chính", "Mains"),
+    "Side Dishes": ("mon-phu", "Món Phụ", "Sides"),
+    "Sauces & Toppings": ("sot", "Sốt & Nước Chấm", "Sauces"),
+    "Desserts": ("trang-mieng", "Tráng Miệng", "Desserts"),
+}
+
+KNOWN_NON_KITCHEN_GROUPS = {
+    "Quick References",
+    "Drinks",
+    "Cocktails",
+}
+
+KITCHEN_HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
+
+KITCHEN_BULLET_RE = re.compile(r"^- \[([^\]]+)\]\(([^)]+)\)\s*(.*)$")
+
+KITCHEN_BULLET_DESC_RE = re.compile(r"[–—-]\s+(.+)")
+
+KITCHEN_OVERRIDE_KEYS = frozenset({"name", "nameVi", "description"})
+
+KITCHEN_MERGE_OVERRIDE_KEYS = frozenset({"sources", "nameVi", "description"})
+
+KITCHEN_SECTION_OVERRIDE_KEYS = frozenset({"note"})
+
+KITCHEN_CONFIG_KEYS = frozenset({"items", "merges", "sections", "order"})
+
 SERVE_CUE_PARAGRAPHS = {
     "served hot or iced",
     "hot or iced",
@@ -125,6 +154,10 @@ class OrderingConfigError(Exception):
 
 class SiteOverridesError(Exception):
     """Raised when the site overrides config contradicts the recipes."""
+
+
+class KitchenIndexError(Exception):
+    """Raised when the recipes README index cannot place a kitchen dish."""
 
 
 @dataclass
@@ -442,6 +475,398 @@ def build_bar_items(text: str, config: dict) -> list[Item]:
             )
         )
     return items
+
+
+@dataclass
+class KitchenEntry:
+    """One top-level README bullet: a dish the kitchen menu can place."""
+
+    name: str
+    file: str
+    anchor: str | None
+    description: str | None
+
+
+@dataclass
+class KitchenIndexSection:
+    id: str
+    title_vi: str
+    title_en: str
+    entries: list[KitchenEntry]
+
+
+@dataclass
+class KitchenMenuSection:
+    id: str
+    title_vi: str
+    title_en: str
+    note: str | None
+    items: list[Item] = field(default_factory=list)
+
+
+@dataclass
+class KitchenMenu:
+    sections: list[KitchenMenuSection]
+
+
+def github_slug(text: str) -> str:
+    """Slug a heading the way recipes/build.py anchors them: unicode word
+    characters survive, so README anchors like #nước-chấm-nước-mắm-pha
+    resolve. The ASCII-folding slugify above is for identifiers, not
+    anchors."""
+    slug = re.sub(r"[^\w\s-]", "", text.strip().lower()).replace(" ", "-")
+    return slug or "section"
+
+
+def github_heading_ids(text: str) -> set[str]:
+    """Every heading id recipes/build.py would assign: github_slug per
+    heading, duplicates suffixed -1, -2, ... in document order."""
+    counts: dict[str, int] = {}
+    ids: set[str] = set()
+    for line in text.splitlines():
+        match = KITCHEN_HEADING_RE.match(line)
+        if not match:
+            continue
+        slug = github_slug(match.group(2))
+        seen = counts.get(slug, 0)
+        counts[slug] = seen + 1
+        ids.add(slug if seen == 0 else f"{slug}-{seen}")
+    return ids
+
+
+def dish_intro(text: str) -> str | None:
+    """First paragraph under the H1 of a one-dish recipe file, markdown
+    stripped; None when the file opens with a heading instead."""
+    past_h1 = False
+    for line in text.splitlines():
+        match = KITCHEN_HEADING_RE.match(line)
+        if match:
+            if not past_h1 and len(match.group(1)) == 1:
+                past_h1 = True
+                continue
+            break
+        if not past_h1:
+            continue
+        stripped = line.strip()
+        if not stripped or stripped == "---":
+            continue
+        return strip_markdown(stripped) or None
+    return None
+
+
+def parse_kitchen_index(text: str) -> list[KitchenIndexSection]:
+    """Walk the recipes README's Available Recipes index.
+
+    A `###` group heading maps through KITCHEN_SECTION_MAP; groups in
+    KNOWN_NON_KITCHEN_GROUPS (the drinks and cocktail indexes) are
+    skipped, and anything else fails loudly. Within a mapped group every
+    top-level bullet is one KitchenEntry keyed by its link text, with the
+    one-liner after the link as its description; nested bullets are
+    components, not dishes.
+    """
+    sections: list[KitchenIndexSection] = []
+    in_available = False
+    current: KitchenIndexSection | None = None
+    for line in text.splitlines():
+        heading = KITCHEN_HEADING_RE.match(line)
+        if heading:
+            level, title = len(heading.group(1)), heading.group(2).strip()
+            if level == 2:
+                in_available = title == "Available Recipes"
+                current = None
+            elif level == 3 and in_available:
+                spec = KITCHEN_SECTION_MAP.get(title)
+                if spec is None:
+                    if title not in KNOWN_NON_KITCHEN_GROUPS:
+                        raise KitchenIndexError(
+                            f"recipes README group {title!r} is not mapped to a "
+                            "kitchen section; add it to KITCHEN_SECTION_MAP or "
+                            "KNOWN_NON_KITCHEN_GROUPS in menu/menu_source.py"
+                        )
+                    current = None
+                else:
+                    section_id, title_vi, title_en = spec
+                    current = KitchenIndexSection(section_id, title_vi, title_en, [])
+                    sections.append(current)
+            continue
+        if current is None:
+            continue
+        bullet = KITCHEN_BULLET_RE.match(line)
+        if not bullet:
+            continue
+        name, target = bullet.group(1), bullet.group(2)
+        # The remainder may hold the one-liner behind a -, –, or — separator,
+        # or an annotation like Mushrooms' "(Oven Roasted, Pan Roasted, ...)",
+        # which is not a description.
+        desc_match = KITCHEN_BULLET_DESC_RE.match(bullet.group(3) or "")
+        file, _, anchor = target.partition("#")
+        current.entries.append(
+            KitchenEntry(
+                name=name,
+                file=file,
+                anchor=anchor or None,
+                description=desc_match.group(1) if desc_match else None,
+            )
+        )
+    return sections
+
+
+def _kitchen_overrides(config: dict) -> dict:
+    kitchen = config.get("kitchen")
+    if not isinstance(kitchen, dict):
+        raise SiteOverridesError("the overrides config needs a 'kitchen' object")
+    unknown = set(kitchen) - KITCHEN_CONFIG_KEYS
+    if unknown:
+        raise SiteOverridesError(
+            f"the overrides config 'kitchen' has unknown keys {sorted(unknown)}: "
+            f"expected only {sorted(KITCHEN_CONFIG_KEYS)}"
+        )
+    items = kitchen.get("items", {})
+    if not isinstance(items, dict) or not all(
+        isinstance(entry, dict) for entry in items.values()
+    ):
+        raise SiteOverridesError(
+            "the overrides config 'kitchen.items' must be an object mapping "
+            "README dish names to override objects"
+        )
+    for name, entry in items.items():
+        unknown = set(entry) - KITCHEN_OVERRIDE_KEYS
+        if unknown:
+            raise SiteOverridesError(
+                f"the kitchen overrides entry for {name!r} has unknown keys "
+                f"{sorted(unknown)}: expected only {sorted(KITCHEN_OVERRIDE_KEYS)}"
+            )
+    merges = kitchen.get("merges", {})
+    if not isinstance(merges, dict) or not all(
+        isinstance(entry, dict) for entry in merges.values()
+    ):
+        raise SiteOverridesError(
+            "the overrides config 'kitchen.merges' must be an object mapping "
+            "menu item names to merge objects"
+        )
+    for name, merge in merges.items():
+        unknown = set(merge) - KITCHEN_MERGE_OVERRIDE_KEYS
+        if unknown:
+            raise SiteOverridesError(
+                f"the kitchen merge for {name!r} has unknown keys {sorted(unknown)}: "
+                f"expected only {sorted(KITCHEN_MERGE_OVERRIDE_KEYS)}"
+            )
+        sources = merge.get("sources")
+        if (
+            not isinstance(sources, list)
+            or not sources
+            or not all(isinstance(source, str) for source in sources)
+        ):
+            raise SiteOverridesError(
+                f"the kitchen merge for {name!r} needs a non-empty 'sources' "
+                "list of README dish names"
+            )
+    sections = kitchen.get("sections", {})
+    if not isinstance(sections, dict) or not all(
+        isinstance(entry, dict) for entry in sections.values()
+    ):
+        raise SiteOverridesError(
+            "the overrides config 'kitchen.sections' must be an object mapping "
+            "section ids to overrides"
+        )
+    for section_id, entry in sections.items():
+        unknown = set(entry) - KITCHEN_SECTION_OVERRIDE_KEYS
+        if unknown:
+            raise SiteOverridesError(
+                f"the kitchen section override for {section_id!r} has unknown "
+                f"keys {sorted(unknown)}: expected only "
+                f"{sorted(KITCHEN_SECTION_OVERRIDE_KEYS)}"
+            )
+    order = kitchen.get("order", {})
+    if not isinstance(order, dict) or not all(
+        isinstance(names, list) and all(isinstance(name, str) for name in names)
+        for names in order.values()
+    ):
+        raise SiteOverridesError(
+            "the overrides config 'kitchen.order' must be an object mapping "
+            "section ids to item-name lists"
+        )
+    return {
+        "items": items,
+        "merges": merges,
+        "sections": sections,
+        "order": order,
+    }
+
+
+def _kitchen_entry_texts(
+    entries: dict[str, tuple["KitchenIndexSection", "KitchenEntry"]],
+    file_loader: Callable[[str], str],
+) -> dict[str, str]:
+    """Load and cache every referenced recipe file, failing loudly on the
+    first missing one, and verify every #anchor against build.py's
+    heading ids."""
+    texts: dict[str, str] = {}
+    for name, (_, entry) in entries.items():
+        if entry.file not in texts:
+            try:
+                texts[entry.file] = file_loader(entry.file)
+            except Exception as exc:
+                raise KitchenIndexError(
+                    f"recipe file {entry.file!r} referenced by {name!r} is "
+                    f"missing or unreadable: {exc}"
+                ) from exc
+        if entry.anchor is not None and entry.anchor not in github_heading_ids(
+            texts[entry.file]
+        ):
+            raise KitchenIndexError(
+                f"anchor {entry.anchor!r} from {entry.name!r} not found in "
+                f"{entry.file!r}"
+            )
+    return texts
+
+
+def build_kitchen_menu(
+    readme_text: str, file_loader: Callable[[str], str], config: dict
+) -> KitchenMenu:
+    """Build the kitchen menu from the recipes README index, the dish
+    files behind it, and the site overrides config.
+
+    Every top-level README bullet in a mapped group becomes an item: the
+    display name defaults to the link text, and the description chain is
+    the override, then the README one-liner, then the dish file's intro
+    paragraph, then none. A merge (e.g. Asparagus from its oven and pan
+    variants) replaces its source bullets with one item placed at the
+    first source. Every referenced file and #anchor is verified against
+    the recipes tree using build.py's GitHub-slug anchors. Overrides
+    naming dishes or sections the README does not define, merges whose
+    sources are missing or span sections, and order lists that are not a
+    permutation of their section's items all fail loudly.
+    """
+    kitchen = _kitchen_overrides(config)
+    index = parse_kitchen_index(readme_text)
+
+    entries: dict[str, tuple[KitchenIndexSection, KitchenEntry]] = {}
+    for section in index:
+        for entry in section.entries:
+            if entry.name in entries:
+                raise KitchenIndexError(
+                    f"recipes README lists {entry.name!r} twice; dish names "
+                    "must be unique"
+                )
+            entries[entry.name] = (section, entry)
+
+    stale = sorted(set(kitchen["items"]) - set(entries))
+    if stale:
+        raise SiteOverridesError(
+            "the kitchen overrides config names dishes the README does not "
+            f"define: {stale}"
+        )
+    for menu_name, merge in kitchen["merges"].items():
+        if menu_name in entries:
+            raise SiteOverridesError(
+                f"the kitchen merge {menu_name!r} collides with a README dish "
+                "of the same name"
+            )
+        unknown_sources = [
+            source for source in merge["sources"] if source not in entries
+        ]
+        if unknown_sources:
+            raise SiteOverridesError(
+                f"the kitchen merge {menu_name!r} sources dishes the README "
+                f"does not define: {unknown_sources}"
+            )
+        spanned = sorted({entries[source][0].id for source in merge["sources"]})
+        if len(spanned) > 1:
+            raise SiteOverridesError(
+                f"the kitchen merge {menu_name!r} spans sections {spanned}"
+            )
+    unknown_notes = sorted(set(kitchen["sections"]) - {s.id for s in index})
+    if unknown_notes:
+        raise SiteOverridesError(
+            "the kitchen overrides config keys sections the README does not "
+            f"define: {unknown_notes}"
+        )
+    unknown_order = sorted(set(kitchen["order"]) - {s.id for s in index})
+    if unknown_order:
+        raise SiteOverridesError(
+            "the kitchen overrides config orders sections the README does "
+            f"not define: {unknown_order}"
+        )
+    consumed: dict[str, str] = {}
+    for menu_name, merge in kitchen["merges"].items():
+        for source in merge["sources"]:
+            if source in consumed:
+                raise SiteOverridesError(
+                    f"the kitchen merges {consumed[source]!r} and {menu_name!r} "
+                    f"both consume {source!r}"
+                )
+            consumed[source] = menu_name
+
+    texts = _kitchen_entry_texts(entries, file_loader)
+
+    sections: list[KitchenMenuSection] = []
+    for index_section in index:
+        items: list[Item] = []
+        merge_seen: set[str] = set()
+        for entry in index_section.entries:
+            menu_name = consumed.get(entry.name)
+            if menu_name is not None:
+                if menu_name in merge_seen:
+                    continue
+                merge_seen.add(menu_name)
+                merge = kitchen["merges"][menu_name]
+                items.append(
+                    Item(
+                        name_en=menu_name,
+                        name_vi=merge.get("nameVi"),
+                        description=merge.get("description"),
+                        temperatures=[],
+                    )
+                )
+                continue
+            override = kitchen["items"].get(entry.name, {})
+            description = override.get("description") or entry.description
+            if description is None and entry.anchor is None:
+                description = dish_intro(texts[entry.file])
+            items.append(
+                Item(
+                    name_en=override.get("name") or entry.name,
+                    name_vi=override.get("nameVi"),
+                    description=description,
+                    temperatures=[],
+                )
+            )
+        duplicates = sorted(
+            {
+                name
+                for name in {item.name_en for item in items}
+                if [item.name_en for item in items].count(name) > 1
+            }
+        )
+        if duplicates:
+            raise SiteOverridesError(
+                f"the kitchen section {index_section.id!r} resolves duplicate "
+                f"item names {duplicates}"
+            )
+        note = kitchen["sections"].get(index_section.id, {}).get("note")
+        sections.append(
+            KitchenMenuSection(
+                id=index_section.id,
+                title_vi=index_section.title_vi,
+                title_en=index_section.title_en,
+                note=note,
+                items=items,
+            )
+        )
+
+    for section_id, order in kitchen["order"].items():
+        section = next(s for s in sections if s.id == section_id)
+        final_names = [item.name_en for item in section.items]
+        if sorted(order) != sorted(final_names):
+            raise SiteOverridesError(
+                f"the kitchen order for {section_id!r} must be a permutation "
+                f"of the section's items {final_names}; got {order}"
+            )
+        by_name = {item.name_en: item for item in section.items}
+        section.items[:] = [by_name[name] for name in order]
+
+    return KitchenMenu(sections=sections)
 
 
 def parse_menu(text: str) -> Menu:

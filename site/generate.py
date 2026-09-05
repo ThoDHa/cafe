@@ -7,8 +7,10 @@ cold-foam builds map onto the five menu sections, and items are derived
 entirely from the file, so a drink added to recipes appears on the next
 deploy with no generator change. The bar menu is generated the same way
 from recipes/cocktails.md: the template families become the COCKTAILS
-section, with curated copy in site/menu-overrides.json. This module
-keeps only the site's own concerns: section blurbs, templates,
+section, with curated copy in site/menu-overrides.json. The kitchen menu
+is generated from the recipes README index over the dish files, with the
+same overrides file holding the curated names, merges, and copy. This
+module keeps only the site's own concerns: section blurbs, templates,
 rendering, and the print-budget fit.
 
 Usage: uv run --with weasyprint python site/generate.py [--recipes PATH] [--out DIR]
@@ -49,11 +51,13 @@ import menu_source  # noqa: E402
 from menu_source import (  # noqa: E402,F401
     HEADING_RE,
     Item,
+    KitchenMenu,
     SECTION_MAP,
     TEMPERATURE_OVERRIDES,
     UnmappedSectionError,
     VIETNAMESE_NAME_OVERRIDES,
     build_bar_items,
+    build_kitchen_menu,
     strip_markdown,
 )
 
@@ -214,8 +218,13 @@ def render_item(item: Item, show_pills: bool) -> str:
     return "\n".join(parts)
 
 
-def render_section(section: Section) -> str:
-    items = "\n".join(render_item(item, section.show_pills) for item in section.items)
+def render_section(section: Section, item_renderer=None) -> str:
+    if item_renderer is None:
+
+        def item_renderer(item: Item) -> str:
+            return render_item(item, section.show_pills)
+
+    items = "\n".join(item_renderer(item) for item in section.items)
     parts = [
         "  <section>",
         '    <div class="section-head">',
@@ -286,6 +295,42 @@ def render_bar_page(items: list[Item]) -> str:
     template = (TEMPLATES_DIR / "bar.html").read_text()
     items_html = "\n".join(render_bar_item(item) for item in items)
     return template.replace("<!--ITEMS-->", items_html)
+
+
+def render_kitchen_page(kitchen: KitchenMenu) -> str:
+    """Render the kitchen page with the design reference's exact formatting.
+
+    Kitchen items lead with their display name and carry an optional
+    subtitle; sections are separated by the phin-drip divider, all bytes
+    mirroring the former hand page.
+    """
+
+    def render_kitchen_item(item: Item) -> str:
+        parts = [
+            '      <div class="item">',
+            '        <div class="item-line">',
+            f'          <span class="item-name">{html.escape(item.name_en)}</span>',
+            "        </div>",
+        ]
+        if item.name_vi:
+            parts.append(f'        <p class="item-vi">{html.escape(item.name_vi)}</p>')
+        if item.description:
+            parts.append(
+                f'        <p class="item-desc">{html.escape(item.description)}</p>'
+            )
+        parts.append("      </div>")
+        return "\n".join(parts)
+
+    template = (TEMPLATES_DIR / "kitchen.html").read_text()
+    drip = (
+        "\n\n"
+        '  <div class="drip" aria-hidden="true">'
+        "<span></span><span></span><span></span></div>\n\n"
+    )
+    sections_html = drip.join(
+        render_section(section, render_kitchen_item) for section in kitchen.sections
+    )
+    return template.replace("<!--SECTIONS-->", sections_html)
 
 
 def inject_print_root(page_html: str, root_px: float) -> str:
@@ -381,6 +426,20 @@ def build_site(
         )
     bar_items = build_bar_items(cocktails_path.read_text(), overrides)
     print(f"bar: {len(bar_items)} families from {cocktails_path.name}")
+    readme_path = recipes_path.parent / "README.md"
+    if not readme_path.is_file():
+        raise RuntimeError(
+            f"missing {readme_path}; the kitchen page is generated from it"
+        )
+
+    def load_recipe(name: str) -> str:
+        return (recipes_path.parent / name).read_text()
+
+    kitchen_menu = build_kitchen_menu(readme_path.read_text(), load_recipe, overrides)
+    print(
+        f"kitchen: {sum(len(s.items) for s in kitchen_menu.sections)} dishes "
+        f"from {readme_path.name}"
+    )
     out_dir.mkdir(parents=True, exist_ok=True)
     scaler_asset = MENU_SOURCE_DIR.joinpath("assets", PRINT_SCALER_ASSET_NAME)
     if not scaler_asset.is_file():
@@ -416,7 +475,7 @@ def build_site(
         fitted.append(("bar.html", bar_root))
     bar_page = inject_print_scaler(bar_page, "bar.html")
     (out_dir / "bar.html").write_text(bar_page)
-    kitchen_page = (MENU_SOURCE_DIR / "kitchen.html").read_text()
+    kitchen_page = render_kitchen_page(kitchen_menu)
     if fit_pages:
         kitchen_page, kitchen_root = fit_print_root(
             kitchen_page, label="kitchen.html", max_pages=PRINT_PAGE_BUDGET

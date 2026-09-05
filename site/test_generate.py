@@ -509,6 +509,422 @@ class TestBarOverrides:
             raise AssertionError("expected SiteOverridesError")
 
 
+KITCHEN_README_FIXTURE = textwrap.dedent(
+    """
+    # My Recipe Collection
+
+    ## Quick References
+
+    ### [Produce Guide](produce.md) - How to pick, ripen, and store produce
+
+    ---
+
+    ## Available Recipes
+
+    ### Appetizers
+
+    - [Charcuterie Nachos](charcuterie_nachos.md) - Salt and vinegar chips under molten Brie
+    - [Cured Salmon Sashimi](cured_salmon_sashimi.md) - Lightly cured salmon, sliced thin
+
+    ### Main Dishes
+
+    - [Chicken Wings](chicken_wings.md) - Dry brined roasted wings
+    - [Cajun Shrimp Pasta](cajun_shrimp_pasta.md) - Assembly dish: pasta with Cajun sauce:
+      - [Lobster Bisque Pasta Sauce](lobster_bisque_pasta_sauce.md) - Rich Cajun sauce
+    - [Bacon Over Congee](bacon_over_congee.md)
+    - [Ragu](ragu.md) - Vietnamese style ragu
+
+    ### Side Dishes
+
+    - [Roasted Garlic Potatoes](side_dishes.md#roasted-garlic-potatoes)
+    - [Oven Roasted Asparagus](side_dishes.md#oven-roasted-asparagus)
+    - [Pan Cooked Asparagus](side_dishes.md#pan-cooked-asparagus)
+
+    ### Drinks
+
+    - [Coffee](cafe.md#coffee) - Sweet, milky, shaken
+
+    ### Cocktails
+
+    - [Mule](cocktails.md#mule) - Generic mule template
+
+    ### Sauces & Toppings
+
+    - [Nước Chấm](sauces.md#nước-chấm-nước-mắm-pha) - The foundational Vietnamese fish sauce dip
+
+    ### Desserts
+
+    - [Cookies](cookies.md) - Modular cookie system
+    """
+)
+
+KITCHEN_FILE_FIXTURES = {
+    "charcuterie_nachos.md": (
+        "# Charcuterie Nachos\n"
+        "\n"
+        "Crisp chips are layered with Brie.\n"
+        "\n"
+        "---\n"
+        "\n"
+        "## Ingredients\n"
+        "\n"
+        "- chips\n"
+    ),
+    "cured_salmon_sashimi.md": (
+        "# Cured Salmon Sashimi\n"
+        "\n"
+        "*Salmon cured, wiped clean, and sliced.*\n"
+        "\n"
+        "## Ingredients\n"
+        "\n"
+        "- salmon\n"
+    ),
+    "chicken_wings.md": (
+        "# Chicken Wings\n"
+        "\n"
+        "Juicy wings with crackling skin.\n"
+        "\n"
+        "## Ingredients\n"
+    ),
+    "cajun_shrimp_pasta.md": "# Cajun Shrimp Pasta\n\nAn assembly dish.\n\n## Ingredients\n",
+    "steak.md": "# Steak\n\nA ribeye.\n\n## Ingredients\n",
+    "bacon_over_congee.md": (
+        "# Bacon Over Congee\n"
+        "\n"
+        "Fish-sauce-glazed bacon over rice congee.\n"
+        "\n"
+        "## Ingredients\n"
+    ),
+    "ragu.md": "# Ragu\n\nA deeply savory sauce.\n\n## Ingredients\n",
+    "side_dishes.md": (
+        "# Vegetables\n"
+        "\n"
+        "## Potatoes\n"
+        "\n"
+        "### Roasted Garlic Potatoes\n"
+        "\n"
+        "#### Ingredients\n"
+        "\n"
+        "- potatoes\n"
+        "\n"
+        "## Asparagus\n"
+        "\n"
+        "### Oven Roasted Asparagus\n"
+        "\n"
+        "#### Ingredients\n"
+        "\n"
+        "- asparagus\n"
+        "\n"
+        "### Pan Cooked Asparagus\n"
+        "\n"
+        "#### Ingredients\n"
+        "\n"
+        "- asparagus\n"
+    ),
+    "sauces.md": (
+        "# Sauces & Toppings\n"
+        "\n"
+        "## Sauces\n"
+        "\n"
+        "### Nước Chấm (Nước Mắm Pha)\n"
+        "\n"
+        "#### Ingredients\n"
+        "\n"
+        "- fish sauce\n"
+    ),
+    "cookies.md": "# Cookies\n\nThe cookie system.\n\n## Base Dough\n",
+}
+
+
+def kitchen_file_loader(name):
+    try:
+        return KITCHEN_FILE_FIXTURES[name]
+    except KeyError:
+        raise KeyError(f"no fixture recipe file {name!r}") from None
+
+
+KITCHEN_OVERRIDES_FIXTURE = {
+    "kitchen": {
+        "items": {
+            "Chicken Wings": {"name": "Cánh Gà", "nameVi": "Chicken Wings"},
+            "Ragu": {"nameVi": "Ra-gu"},
+            "Charcuterie Nachos": {
+                "description": "Salt and vinegar chips under molten Brie."
+            },
+        },
+        "merges": {
+            "Asparagus": {
+                "sources": ["Oven Roasted Asparagus", "Pan Cooked Asparagus"],
+                "description": "Roasted or pan-cooked, bright and snappy.",
+            }
+        },
+        "sections": {"sot": {"note": "Made in house. Ask for pairings."}},
+    }
+}
+
+
+def parsed_kitchen_fixture():
+    return menu_source.build_kitchen_menu(
+        KITCHEN_README_FIXTURE, kitchen_file_loader, KITCHEN_OVERRIDES_FIXTURE
+    )
+
+
+class TestKitchenIndex:
+    def test_groups_become_sections_in_readme_order(self):
+        kitchen = parsed_kitchen_fixture()
+        assert [s.id for s in kitchen.sections] == [
+            "khai-vi",
+            "mon-chinh",
+            "mon-phu",
+            "sot",
+            "trang-mieng",
+        ]
+
+    def test_drinks_cocktails_and_quick_reference_groups_are_skipped(self):
+        kitchen = parsed_kitchen_fixture()
+        ids = {s.id for s in kitchen.sections}
+        assert {"drinks", "cocktails", "quick-references"}.isdisjoint(ids)
+        for section in kitchen.sections:
+            names = [i.name_en for i in section.items]
+            assert "Coffee" not in names
+            assert "Mule" not in names
+            assert "Produce Guide" not in names
+
+    def test_bullets_become_entries_with_link_text_names(self):
+        kitchen = menu_source.build_kitchen_menu(
+            KITCHEN_README_FIXTURE, kitchen_file_loader, {"kitchen": {}}
+        )
+        mains = kitchen.sections[1]
+        assert [i.name_en for i in mains.items] == [
+            "Chicken Wings",
+            "Cajun Shrimp Pasta",
+            "Bacon Over Congee",
+            "Ragu",
+        ]
+
+    def test_nested_bullets_are_not_entries(self):
+        kitchen = parsed_kitchen_fixture()
+        names = [i.name_en for s in kitchen.sections for i in s.items]
+        assert "Lobster Bisque Pasta Sauce" not in names
+
+    def test_bullet_separator_variants_and_annotations(self):
+        readme = KITCHEN_README_FIXTURE.replace(
+            "- [Bacon Over Congee](bacon_over_congee.md)",
+            "- [Bacon Over Congee](bacon_over_congee.md) – Fish sauce glazed bacon\n"
+            "- [Steak](steak.md) (annotation only)",
+        )
+        kitchen = menu_source.build_kitchen_menu(
+            readme, kitchen_file_loader, {"kitchen": {}}
+        )
+        mains = kitchen.sections[1]
+        by_name = {i.name_en: i for i in mains.items}
+        assert by_name["Bacon Over Congee"].description == "Fish sauce glazed bacon"
+        # the parenthetical annotation is not a description; the chain falls
+        # through to the dish file's intro paragraph
+        assert by_name["Steak"].description == "A ribeye."
+
+    def test_unknown_group_fails_loudly(self):
+        readme = KITCHEN_README_FIXTURE.replace(
+            "### Desserts", "### Smoothies\n\n- [Blended Fruit](blended.md)\n\n### Desserts"
+        )
+        try:
+            menu_source.build_kitchen_menu(
+                readme, kitchen_file_loader, KITCHEN_OVERRIDES_FIXTURE
+            )
+        except menu_source.KitchenIndexError as exc:
+            assert "Smoothies" in str(exc)
+        else:
+            raise AssertionError("expected KitchenIndexError")
+
+
+class TestDishIntro:
+    def test_plain_intro_paragraph_is_extracted(self):
+        intro = menu_source.dish_intro(KITCHEN_FILE_FIXTURES["charcuterie_nachos.md"])
+        assert intro == "Crisp chips are layered with Brie."
+
+    def test_italic_intro_is_stripped(self):
+        intro = menu_source.dish_intro(KITCHEN_FILE_FIXTURES["cured_salmon_sashimi.md"])
+        assert intro == "Salmon cured, wiped clean, and sliced."
+        assert "*" not in intro
+
+    def test_file_without_intro_yields_none(self):
+        assert menu_source.dish_intro("# Title\n\n## Ingredients\n\n- x\n") is None
+
+
+class TestGitHubSlugs:
+    def test_diacritics_survive_the_slug(self):
+        assert menu_source.github_slug("Nước Chấm (Nước Mắm Pha)") == (
+            "nước-chấm-nước-mắm-pha"
+        )
+
+    def test_duplicate_headings_get_suffix_ids(self):
+        text = "### Sauce\n\n### Sauce\n\n### Sauce\n"
+        ids = menu_source.github_heading_ids(text)
+        assert ids == {"sauce", "sauce-1", "sauce-2"}
+
+
+class TestBuildKitchenMenu:
+    def test_merged_item_replaces_its_sources(self):
+        kitchen = parsed_kitchen_fixture()
+        sides = kitchen.sections[2]
+        names = [i.name_en for i in sides.items]
+        assert names == ["Roasted Garlic Potatoes", "Asparagus"]
+        asparagus = sides.items[1]
+        assert asparagus.description == "Roasted or pan-cooked, bright and snappy."
+
+    def test_name_and_namevi_overrides_preserve_lead_and_subtitle(self):
+        kitchen = parsed_kitchen_fixture()
+        mains = kitchen.sections[1]
+        wings = mains.items[0]
+        assert wings.name_en == "Cánh Gà"
+        assert wings.name_vi == "Chicken Wings"
+        ragu = mains.items[3]
+        assert ragu.name_en == "Ragu"
+        assert ragu.name_vi == "Ra-gu"
+
+    def test_description_chain_one_liner_then_intro(self):
+        kitchen = parsed_kitchen_fixture()
+        mains = kitchen.sections[1]
+        wings = mains.items[0]
+        assert wings.description == "Dry brined roasted wings"
+        congee = mains.items[2]
+        assert congee.description == "Fish-sauce-glazed bacon over rice congee."
+
+    def test_section_note_applies_to_its_section_only(self):
+        kitchen = parsed_kitchen_fixture()
+        by_id = {s.id: s for s in kitchen.sections}
+        assert by_id["sot"].note == "Made in house. Ask for pairings."
+        assert by_id["khai-vi"].note is None
+        assert by_id["mon-chinh"].note is None
+
+    def test_unknown_item_override_key_fails_loudly(self):
+        config = {"kitchen": {"items": {"Ragu": {"temperatures": ["hot"]}}}}
+        try:
+            menu_source.build_kitchen_menu(
+                KITCHEN_README_FIXTURE, kitchen_file_loader, config
+            )
+        except menu_source.SiteOverridesError as exc:
+            assert "temperatures" in str(exc)
+        else:
+            raise AssertionError("expected SiteOverridesError")
+
+    def test_stale_override_name_fails_loudly(self):
+        config = {"kitchen": {"items": {"Milk Tea": {"description": "gone"}}}}
+        try:
+            menu_source.build_kitchen_menu(
+                KITCHEN_README_FIXTURE, kitchen_file_loader, config
+            )
+        except menu_source.SiteOverridesError as exc:
+            assert "Milk Tea" in str(exc)
+        else:
+            raise AssertionError("expected SiteOverridesError")
+
+    def test_merge_with_unknown_source_fails_loudly(self):
+        config = {
+            "kitchen": {
+                "merges": {
+                    "Asparagus": {
+                        "sources": ["Grilled Asparagus"],
+                    }
+                }
+            }
+        }
+        try:
+            menu_source.build_kitchen_menu(
+                KITCHEN_README_FIXTURE, kitchen_file_loader, config
+            )
+        except menu_source.SiteOverridesError as exc:
+            assert "Grilled Asparagus" in str(exc)
+        else:
+            raise AssertionError("expected SiteOverridesError")
+
+    def test_merge_key_colliding_with_a_bullet_name_fails_loudly(self):
+        config = {
+            "kitchen": {
+                "merges": {
+                    "Ragu": {"sources": ["Oven Roasted Asparagus"]},
+                }
+            }
+        }
+        try:
+            menu_source.build_kitchen_menu(
+                KITCHEN_README_FIXTURE, kitchen_file_loader, config
+            )
+        except menu_source.SiteOverridesError as exc:
+            assert "Ragu" in str(exc)
+        else:
+            raise AssertionError("expected SiteOverridesError")
+
+    def test_unknown_section_override_id_fails_loudly(self):
+        config = {"kitchen": {"sections": {"soup": {"note": "hot"}}}}
+        try:
+            menu_source.build_kitchen_menu(
+                KITCHEN_README_FIXTURE, kitchen_file_loader, config
+            )
+        except menu_source.SiteOverridesError as exc:
+            assert "soup" in str(exc)
+        else:
+            raise AssertionError("expected SiteOverridesError")
+
+    def test_order_list_must_be_a_permutation_of_the_sections_items(self):
+        config = {
+            "kitchen": {
+                "order": {"mon-chinh": ["Ragu", "Chicken Wings", "Ghost Dish"]},
+            }
+        }
+        try:
+            menu_source.build_kitchen_menu(
+                KITCHEN_README_FIXTURE, kitchen_file_loader, config
+            )
+        except menu_source.SiteOverridesError as exc:
+            assert "Ghost Dish" in str(exc)
+        else:
+            raise AssertionError("expected SiteOverridesError")
+
+    def test_order_list_reorders_the_section(self):
+        config = {
+            "kitchen": {
+                "order": {"mon-chinh": ["Ragu", "Bacon Over Congee", "Cajun Shrimp Pasta", "Chicken Wings"]},
+            }
+        }
+        kitchen = menu_source.build_kitchen_menu(
+            KITCHEN_README_FIXTURE, kitchen_file_loader, config
+        )
+        mains = kitchen.sections[1]
+        assert [i.name_en for i in mains.items] == [
+            "Ragu",
+            "Bacon Over Congee",
+            "Cajun Shrimp Pasta",
+            "Chicken Wings",
+        ]
+
+    def test_missing_recipe_file_fails_loudly(self):
+        readme = KITCHEN_README_FIXTURE.replace(
+            "## Desserts", "## Desserts"
+        ).replace("[Cookies](cookies.md)", "[Cookies](missing_file.md)")
+        try:
+            menu_source.build_kitchen_menu(
+                readme, kitchen_file_loader, KITCHEN_OVERRIDES_FIXTURE
+            )
+        except menu_source.KitchenIndexError as exc:
+            assert "missing_file.md" in str(exc)
+        else:
+            raise AssertionError("expected KitchenIndexError")
+
+    def test_missing_anchor_fails_loudly(self):
+        readme = KITCHEN_README_FIXTURE.replace(
+            "side_dishes.md#roasted-garlic-potatoes", "side_dishes.md#ghost-potatoes"
+        )
+        try:
+            menu_source.build_kitchen_menu(
+                readme, kitchen_file_loader, KITCHEN_OVERRIDES_FIXTURE
+            )
+        except menu_source.KitchenIndexError as exc:
+            assert "ghost-potatoes" in str(exc)
+        else:
+            raise AssertionError("expected KitchenIndexError")
+
+
 class TestRealRecipesFile:
     def test_real_file_exists(self):
         assert RECIPES_CAFE.is_file(), "sibling recipes checkout missing"
@@ -629,6 +1045,159 @@ class TestRealCocktailsFile:
         assert missing == []
 
 
+KITCHEN_README_MD = RECIPES_CAFE.parent / "README.md"
+KITCHEN_RECIPES_ROOT = RECIPES_CAFE.parent
+
+
+def real_kitchen_loader(name):
+    return (KITCHEN_RECIPES_ROOT / name).read_text()
+
+
+def real_kitchen_menu():
+    return menu_source.build_kitchen_menu(
+        KITCHEN_README_MD.read_text(),
+        real_kitchen_loader,
+        generate.load_site_overrides(),
+    )
+
+
+class TestRealKitchenFile:
+    def test_real_readme_and_dish_files_exist(self):
+        assert KITCHEN_README_MD.is_file(), "README.md missing beside recipes cafe.md"
+        for name in [
+            "charcuterie_nachos.md",
+            "steak.md",
+            "side_dishes.md",
+            "sauces.md",
+            "cookies.md",
+        ]:
+            assert (KITCHEN_RECIPES_ROOT / name).is_file(), name
+
+    def test_real_section_ids_and_order(self):
+        kitchen = real_kitchen_menu()
+        assert [s.id for s in kitchen.sections] == [
+            "khai-vi",
+            "mon-chinh",
+            "mon-phu",
+            "sot",
+            "trang-mieng",
+        ]
+
+    def test_real_section_minimum_counts(self):
+        kitchen = real_kitchen_menu()
+        counts = {s.id: len(s.items) for s in kitchen.sections}
+        minimums = {
+            "khai-vi": 3,
+            "mon-chinh": 14,
+            "mon-phu": 9,
+            "sot": 17,
+            "trang-mieng": 1,
+        }
+        assert set(counts) == set(minimums)
+        for section_id, minimum in minimums.items():
+            assert counts[section_id] >= minimum, (section_id, counts[section_id])
+
+    def test_real_hand_display_names_are_all_present(self):
+        kitchen = real_kitchen_menu()
+        names = {i.name_en for s in kitchen.sections for i in s.items}
+        for name in [
+            "Charcuterie Nachos",
+            "Cured Salmon Sashimi",
+            "Cured Salmon Bagel",
+            "Steak",
+            "Lamb Rib Chops",
+            "Cánh Gà",
+            "Shrimp Scampi",
+            "Cajun Shrimp Pasta",
+            "Crawfish",
+            "Pan Seared Salmon",
+            "Salmon Sushi Bake",
+            "Carne Asada",
+            "Ragu",
+            "Beefaroni",
+            "Cháo Ba Chỉ",
+            "Braised Beef",
+            "Smash Burgers",
+            "Roasted Garlic Potatoes",
+            "Confit Garlic Mashed Potatoes",
+            "Mushrooms",
+            "Asparagus",
+            "Broccolini",
+            "Brussels Sprouts",
+            "Simple Crisp Slaw",
+            "Texas Caviar",
+            "Corn Casserole",
+            "Nước Chấm",
+            "Nước Mắm Gừng",
+            "Muối Tiêu Chanh Ớt",
+            "Nam Jim Jaew",
+            "Chimichurri",
+            "Creamy Steak Sauce",
+            "Soy-Mirin Brown Butter",
+            "Mushroom Pan Sauce",
+            "Creamy Garlic Sauce",
+            "Lemon Caper Butter",
+            "Soy Ginger Sauce",
+            "Soy Garlic Sauce",
+            "Asian Style Tzatziki",
+            "Burger Sauce",
+            "Nacho Cheese Sauce",
+            "Pico de Gallo",
+            "Simple Guacamole",
+            "Cookies",
+        ]:
+            assert name in names, name
+
+    def test_real_merged_variant_names_are_absent(self):
+        kitchen = real_kitchen_menu()
+        names = {i.name_en for s in kitchen.sections for i in s.items}
+        for gone in [
+            "Oven Roasted Asparagus",
+            "Pan Cooked Asparagus",
+            "Oven Roasted Broccolini",
+            "Pan Cooked Broccolini",
+        ]:
+            assert gone not in names, gone
+
+    def test_real_vietnamese_lead_and_subtitle_cases(self):
+        kitchen = real_kitchen_menu()
+        items = {i.name_en: i for s in kitchen.sections for i in s.items}
+        assert items["Cánh Gà"].name_vi == "Chicken Wings"
+        assert items["Cháo Ba Chỉ"].name_vi == "Bacon Over Congee"
+        assert items["Ragu"].name_vi == "Ra-gu"
+        assert items["Steak"].name_vi is None
+
+    def test_real_sauce_note_applies_only_to_sot(self):
+        kitchen = real_kitchen_menu()
+        by_id = {s.id: s for s in kitchen.sections}
+        assert by_id["sot"].note == "Made in house. Ask for pairings."
+        for section_id in ("khai-vi", "mon-chinh", "mon-phu", "trang-mieng"):
+            assert by_id[section_id].note is None
+
+    def test_real_curated_item_order_holds(self):
+        kitchen = real_kitchen_menu()
+        by_id = {s.id: s for s in kitchen.sections}
+        sot_names = [i.name_en for i in by_id["sot"].items]
+        assert sot_names[0] == "Nước Chấm"
+        assert sot_names[-2:] == ["Pico de Gallo", "Simple Guacamole"]
+        phu_names = [i.name_en for i in by_id["mon-phu"].items]
+        assert phu_names.index("Brussels Sprouts") < phu_names.index("Simple Crisp Slaw")
+        mains_names = [i.name_en for i in by_id["mon-chinh"].items]
+        assert mains_names[:2] == ["Steak", "Lamb Rib Chops"]
+
+    def test_real_curated_descriptions(self):
+        kitchen = real_kitchen_menu()
+        items = {i.name_en: i for s in kitchen.sections for i in s.items}
+        assert items["Nacho Cheese Sauce"].description == "Roux-based cheddar and Jack."
+        assert items["Asparagus"].description == "Roasted or pan-cooked, bright and snappy."
+        assert items["Cookies"].description == (
+            "Baked from the house dough: chocolate chip, M&M, oatmeal, or oatmeal raisin."
+        )
+        assert items["Steak"].description == (
+            "Reverse-seared ribeye basted in garlic brown butter."
+        )
+
+
 class TestRender:
     def test_render_contains_sections_and_items(self):
         menu = generate.parse_menu(RECIPES_CAFE.read_text())
@@ -747,6 +1316,58 @@ class TestBarRender:
         items = self._bar_items()
         items[0].description = "<script>alert(1)</script>"
         page = generate.render_bar_page(items)
+        assert "<script>alert" not in page
+
+
+class TestKitchenRender:
+    def _kitchen_page(self):
+        return generate.render_kitchen_page(real_kitchen_menu())
+
+    def test_render_contains_section_heads_and_items(self):
+        page = self._kitchen_page()
+        for needle in [
+            ">KHAI VỊ<",
+            ">MÓN CHÍNH<",
+            ">MÓN PHỤ<",
+            ">SỐT &amp; NƯỚC CHẤM<",
+            ">TRÁNG MIỆNG<",
+            ">Charcuterie Nachos<",
+            ">Cánh Gà<",
+            ">Cookies<",
+        ]:
+            assert needle in page, f"missing {needle!r}"
+
+    def test_render_keeps_subtitle_markup(self):
+        page = self._kitchen_page()
+        canh_ga = page[page.index(">Cánh Gà<") : page.index(">Cánh Gà<") + 300]
+        assert '<p class="item-vi">Chicken Wings</p>' in canh_ga
+        ragu = page[page.index(">Ragu<") : page.index(">Ragu<") + 300]
+        assert '<p class="item-vi">Ra-gu</p>' in ragu
+
+    def test_render_carries_the_sauce_note_between_sections(self):
+        page = self._kitchen_page()
+        assert '<p class="section-note">Made in house. Ask for pairings.</p>' in page
+
+    def test_render_has_four_drip_dividers_between_five_sections(self):
+        page = self._kitchen_page()
+        assert page.count('<div class="drip" aria-hidden="true">') == 4
+
+    def test_render_has_no_pills_or_ordering_artifacts(self):
+        page = self._kitchen_page()
+        assert '<span class="tag' not in page
+        assert "data-id" not in page
+        assert "data-temperatures" not in page
+        assert "application/json" not in page
+
+    def test_render_keeps_footer_links(self):
+        page = self._kitchen_page()
+        assert '<a href="menu.html">' in page
+        assert '<a href="bar.html">' in page
+
+    def test_render_escapes_item_text(self):
+        kitchen = real_kitchen_menu()
+        kitchen.sections[0].items[0].description = "<script>alert(1)</script>"
+        page = generate.render_kitchen_page(kitchen)
         assert "<script>alert" not in page
 
 

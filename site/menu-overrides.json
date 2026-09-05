@@ -25,5 +25,191 @@
       }
     }
   },
-  "kitchen": {}
+  "kitchen": {
+    "items": {
+      "Charcuterie Nachos": {
+        "description": "Salt and vinegar chips under molten Brie and prosciutto, finished with arugula, goat cheese, fig, and balsamic."
+      },
+      "Cured Salmon Sashimi": {
+        "description": "One-hour salt and sugar cure, sliced thin and served chilled."
+      },
+      "Cured Salmon Bagel": {
+        "description": "House-cured salmon on a toasted bagel with cream cheese, capers, and pickled onion."
+      },
+      "Steak": {
+        "description": "Reverse-seared ribeye basted in garlic brown butter."
+      },
+      "Lamb Rib Chops": {
+        "description": "Seared rib chops, rosy at the center."
+      },
+      "Chicken Wings": {
+        "name": "Cánh Gà",
+        "nameVi": "Chicken Wings",
+        "description": "Dry-brined and roasted until the skin crackles."
+      },
+      "Shrimp Scampi": {
+        "description": "Garlic-butter shrimp over a tomato base, breadcrumb crown."
+      },
+      "Cajun Shrimp Pasta": {
+        "description": "Buttered Cajun shrimp over pasta in a lobster bisque sauce."
+      },
+      "Crawfish": {
+        "description": "Crawfish boil in seasoned butter with Conecuh sausage, roasted corn, and potatoes."
+      },
+      "Pan Seared Salmon": {
+        "description": "Crisp-skinned salmon with the house dry rub."
+      },
+      "Salmon Sushi Bake": {
+        "description": "Flaked roasted salmon in Kewpie and cream cheese over furikake rice, scooped with seaweed."
+      },
+      "Carne Asada": {
+        "description": "Marinated beef for tacos, nachos, and bowls."
+      },
+      "Ragu": {
+        "nameVi": "Ra-gu",
+        "description": "Vietnamese-style ragu, slow and deep."
+      },
+      "Beefaroni": {
+        "description": "Pasta folded through ragu and cheese."
+      },
+      "Bacon Over Congee": {
+        "name": "Cháo Ba Chỉ",
+        "nameVi": "Bacon Over Congee",
+        "description": "Fish-sauce-glazed bacon over rice congee."
+      },
+      "Braised Beef": {
+        "description": "Slow-braised beef, finished Mexican or Vietnamese."
+      },
+      "Smash Burgers": {
+        "description": "Crisp-edged smash patties, modern burger build."
+      },
+      "Roasted Garlic Potatoes": {
+        "description": "Oven-roasted, golden and crisp."
+      },
+      "Confit Garlic Mashed Potatoes": {
+        "description": "Whipped smooth with confit garlic and brown butter."
+      },
+      "Mushrooms": {
+        "description": "Oven- or pan-roasted, with brown butter sauce."
+      },
+      "Brussels Sprouts": {
+        "description": "Oven-roasted until deeply browned."
+      },
+      "Simple Crisp Slaw": {
+        "description": "Cold, crunchy, and sharp."
+      },
+      "Texas Caviar": {
+        "description": "Black-eyed pea and pepper salad, tangy dressing."
+      },
+      "Corn Casserole": {
+        "description": "Sweet corn baked rich and golden."
+      },
+      "Nước Chấm": {
+        "description": "The foundational Vietnamese fish sauce dip."
+      },
+      "Nước Mắm Gừng": {
+        "description": "Ginger fish sauce, built for beef."
+      },
+      "Muối Tiêu Chanh Ớt": {
+        "description": "Salt, pepper, lime, and chili for steak and seafood."
+      },
+      "Nam Jim Jaew": {
+        "description": "Smoky Lao and Thai dipping sauce."
+      },
+      "Chimichurri": {
+        "description": "Argentinian parsley and garlic for grilled meats."
+      },
+      "Asian-Inspired Creamy Steak Sauce": {
+        "name": "Creamy Steak Sauce",
+        "description": "Asian-inspired, rich and savory."
+      },
+      "Soy-Mirin Brown Butter Pan Sauce": {
+        "name": "Soy-Mirin Brown Butter",
+        "description": "Nutty pan sauce with soy and mirin."
+      },
+      "Brown Butter Garlic Soy-Balsamic Mushroom Sauce": {
+        "name": "Mushroom Pan Sauce",
+        "description": "Brown butter, garlic, soy, and balsamic."
+      },
+      "Creamy Garlic Sauce": {
+        "description": "Smooth, garlicky, and cool."
+      },
+      "Lemon Caper Butter Sauce": {
+        "name": "Lemon Caper Butter",
+        "description": "Bright butter sauce for fish."
+      },
+      "Soy Ginger Sauce": {
+        "description": "Warm ginger over a soy base."
+      },
+      "Soy Garlic Sauce": {
+        "description": "Sweet-savory finishing sauce for wings."
+      },
+      "Asian Style Tzatziki": {
+        "description": "Cool yogurt dip with an Asian lean."
+      },
+      "Burger Sauce": {
+        "description": "Diner-style, for burgers and fries."
+      },
+      "Nacho-Style Cheese Sauce": {
+        "name": "Nacho Cheese Sauce",
+        "description": "Roux-based cheddar and Jack."
+      },
+      "Pico de Gallo": {
+        "description": "Fresh tomato, onion, and lime."
+      },
+      "Simple Guacamole": {
+        "description": "Avocado mashed to order."
+      },
+      "Cookies": {
+        "description": "Baked from the house dough: chocolate chip, M&M, oatmeal, or oatmeal raisin."
+      }
+    },
+    "merges": {
+      "Asparagus": {
+        "sources": ["Oven Roasted Asparagus", "Pan Cooked Asparagus"],
+        "description": "Roasted or pan-cooked, bright and snappy."
+      },
+      "Broccolini": {
+        "sources": ["Oven Roasted Broccolini", "Pan Cooked Broccolini"],
+        "description": "Roasted or pan-cooked, charred at the edges."
+      }
+    },
+    "sections": {
+      "sot": {
+        "note": "Made in house. Ask for pairings."
+      }
+    },
+    "order": {
+      "mon-phu": [
+        "Roasted Garlic Potatoes",
+        "Confit Garlic Mashed Potatoes",
+        "Mushrooms",
+        "Asparagus",
+        "Broccolini",
+        "Brussels Sprouts",
+        "Simple Crisp Slaw",
+        "Texas Caviar",
+        "Corn Casserole"
+      ],
+      "sot": [
+        "Nước Chấm",
+        "Nước Mắm Gừng",
+        "Muối Tiêu Chanh Ớt",
+        "Nam Jim Jaew",
+        "Chimichurri",
+        "Creamy Steak Sauce",
+        "Soy-Mirin Brown Butter",
+        "Mushroom Pan Sauce",
+        "Creamy Garlic Sauce",
+        "Lemon Caper Butter",
+        "Soy Ginger Sauce",
+        "Soy Garlic Sauce",
+        "Asian Style Tzatziki",
+        "Burger Sauce",
+        "Nacho Cheese Sauce",
+        "Pico de Gallo",
+        "Simple Guacamole"
+      ]
+    }
+  }
 }
