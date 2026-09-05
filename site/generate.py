@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Generate the public menus site from the recipes repository.
 
-The drinks menu is generated from recipes/cafe.md: the four drink sections
-plus the cold-foam builds map onto the five menu sections, and items are
-derived entirely from the file, so a drink added to recipes appears on the
-next deploy with no generator change. Only menu-shape knowledge that recipes
-cannot express (section titles, Vietnamese names recipes omit, a temperature
-the prose cannot prove) lives in the configuration below.
+The drinks menu is generated from recipes/cafe.md through the shared
+parsing core in menu/menu_source.py: the four drink sections plus the
+cold-foam builds map onto the five menu sections, and items are derived
+entirely from the file, so a drink added to recipes appears on the next
+deploy with no generator change. This module keeps only the site's own
+concerns: section blurbs, templates, rendering, and the print-budget fit.
 
 Usage: uv run --with weasyprint python site/generate.py [--recipes PATH] [--out DIR]
 
@@ -23,15 +23,30 @@ import argparse
 import html
 import re
 import shutil
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SITE_DIR = Path(__file__).resolve().parent
+MENU_DIR = REPO_ROOT / "menu"
 DEFAULT_RECIPES = REPO_ROOT.parent / "recipes" / "cafe.md"
 DEFAULT_OUT = SITE_DIR / "public"
 TEMPLATES_DIR = SITE_DIR / "templates"
-MENU_SOURCE_DIR = REPO_ROOT / "menu"
+MENU_SOURCE_DIR = MENU_DIR
+
+sys.path.insert(0, str(MENU_DIR))
+
+import menu_source  # noqa: E402
+from menu_source import (  # noqa: E402,F401
+    HEADING_RE,
+    Item,
+    SECTION_MAP,
+    TEMPERATURE_OVERRIDES,
+    UnmappedSectionError,
+    VIETNAMESE_NAME_OVERRIDES,
+    strip_markdown,
+)
 
 PRINT_PAGE_BUDGET = 2
 COMPACT_PAGE_BUDGET = 1
@@ -42,99 +57,9 @@ PAPER_SIZES = ("a4", "letter")
 PRINT_FIT_SEARCH_SIZE = "letter"
 PRINT_FIT_STYLE_ID = "print-fit"
 
-SECTION_MAP = {
-    "Coffee": ("ca-phe", "Cà Phê", "Coffee"),
-    "Tea": ("tra", "Trà", "Tea"),
-    "Matcha": ("mat-cha", "Mát-cha", "Matcha"),
-    "Refreshers": ("giai-khat", "Giải Khát", "Refreshers"),
-}
-KEM_SECTION = ("kem", "Kem", "Cold Foams")
-
-KNOWN_NON_DRINK_SECTIONS = {
-    "Table of Contents",
-    "Drink Matrix",
-    "Pantry Staples",
-    "Bases",
-    "Cold Foams",
-    "Presentation",
-    "Drink Construction Rules",
-    "Notes",
-}
-
-VIETNAMESE_NAME_OVERRIDES = {
-    "Cinnamon Oat Shakerato": "Cà Phê Lắc",
-    "Dirty Matcha": "Matcha Cà Phê",
-    "Hot Tea": "Trà",
-    "Lemon Tea": "Trà Chanh",
-    "Milk Tea": "Trà Sữa",
-    "Gongfu Tea": "Trà Công Phu",
-    "Cocoa": "Cacao Sữa",
-    "Strawberry Milk": "Sữa Dâu",
-    "Strawberry Soda": "Soda Dâu",
-    "Strawberry Limeade": "Soda Dâu Chanh",
-}
-
-TEMPERATURE_OVERRIDES = {
-    "Hot Tea": ["hot", "iced"],
-}
-
-FOAM_VIETNAMESE_NAMES = {
-    "Base": "Kem Sữa",
-    "Salted": "Kem Muối",
-    "Strawberry": "Kem Dâu",
-    "Cocoa": "Kem Cacao",
-    "Matcha": "Kem Matcha",
-    "Tea": "Kem Trà",
-    "Cheese": "Kem Phô Mai",
-    "Yogurt": "Kem Sữa Chua",
-}
-
-FOAM_DESCRIPTION_FALLBACKS = {
-    "Base": "Cream and milk frothed thick, spooned over the drink.",
-    "Cocoa": "Cocoa and turbinado whisked to a paste, folded into the base foam.",
-    "Matcha": "Matcha whisked hot until hydrated, folded into the base foam.",
-}
-
-STRUCTURAL_HEADINGS = {
-    "Instructions",
-    "Notes",
-    "Uses",
-    "Straight Serve",
-    "Hot",
-    "Iced",
-    "Variations",
-    "Strawberry Variation",
-    "Dirty Version",
-}
-
-SERVE_CUE_PARAGRAPHS = {
-    "served hot or iced",
-    "hot or iced",
-    "served iced",
-    "served hot",
-}
-
-HEADING_RE = re.compile(r"^(#{2,6})\s+(.+?)\s*$")
-LINK_RE = re.compile(r"\[([^\]]+)\]\([^)]*\)")
-BOLD_RE = re.compile(r"\*\*(.+?)\*\*")
-ITALIC_RE = re.compile(r"(?<!\*)\*([^*]+)\*(?!\*)")
-ICE_WORD_RE = re.compile(r"\bice\b", re.IGNORECASE)
-
-
-class UnmappedSectionError(Exception):
-    """Raised when cafe.md contains a drink-like section the menu cannot place."""
-
 
 class PrintFitError(Exception):
     """Raised when a page cannot fit the print page budget at or above the floor size."""
-
-
-@dataclass
-class Item:
-    name_en: str
-    name_vi: str | None
-    description: str | None
-    temperatures: list[str]
 
 
 @dataclass
@@ -172,136 +97,6 @@ class Menu:
         }
 
 
-def split_top_sections(text: str) -> dict[str, list[str]]:
-    sections: dict[str, list[str]] = {}
-    current: str | None = None
-    for line in text.splitlines():
-        match = HEADING_RE.match(line)
-        if match and len(match.group(1)) == 2:
-            current = match.group(2).strip()
-            sections.setdefault(current, [])
-        elif current is not None:
-            sections[current].append(line)
-    return sections
-
-
-def split_drinks(lines: list[str]) -> list[tuple[str, list[str]]]:
-    drinks: list[tuple[str, list[str]]] = []
-    current_name: str | None = None
-    current_lines: list[str] = []
-    for line in lines:
-        match = HEADING_RE.match(line)
-        if match and len(match.group(1)) == 3:
-            if current_name is not None:
-                drinks.append((current_name, current_lines))
-            current_name = match.group(2).strip()
-            current_lines = []
-        elif current_name is not None:
-            current_lines.append(line)
-    if current_name is not None:
-        drinks.append((current_name, current_lines))
-    return drinks
-
-
-def blocks(lines: list[str]) -> list[tuple[str, str]]:
-    """Group lines into (kind, text) blocks: heading, list, table, or paragraph."""
-    result: list[tuple[str, str]] = []
-    buffer: list[str] = []
-    kind: str | None = None
-
-    def flush() -> None:
-        nonlocal buffer, kind
-        if buffer and kind:
-            result.append((kind, "\n".join(buffer).strip()))
-        buffer = []
-        kind = None
-
-    for line in lines:
-        match = HEADING_RE.match(line)
-        if match:
-            flush()
-            result.append(("heading", match.group(2).strip()))
-        elif line.lstrip().startswith("- "):
-            if kind != "list":
-                flush()
-                kind = "list"
-            buffer.append(line.strip())
-        elif line.lstrip().startswith("|"):
-            if kind != "table":
-                flush()
-                kind = "table"
-            buffer.append(line.strip())
-        elif not line.strip():
-            flush()
-        else:
-            if kind != "paragraph":
-                flush()
-                kind = "paragraph"
-            buffer.append(line.strip())
-    flush()
-    return result
-
-
-def strip_markdown(text: str) -> str:
-    text = LINK_RE.sub(r"\1", text)
-    text = BOLD_RE.sub(r"\1", text)
-    text = ITALIC_RE.sub(r"\1", text)
-    return re.sub(r"\s+", " ", text).strip()
-
-
-def is_serve_cue(paragraph: str) -> bool:
-    return strip_markdown(paragraph).rstrip(".").strip().lower() in SERVE_CUE_PARAGRAPHS
-
-
-def first_paragraph_after_name(drink_blocks: list[tuple[str, str]]) -> str | None:
-    seen_name_heading = False
-    for kind, text in drink_blocks:
-        if kind == "heading":
-            if not seen_name_heading and text not in STRUCTURAL_HEADINGS:
-                seen_name_heading = True
-                continue
-            continue
-        if kind == "paragraph":
-            if is_serve_cue(text):
-                continue
-            cleaned = strip_markdown(text)
-            cleaned = re.sub(r"^Iced only:\s*", "", cleaned, flags=re.IGNORECASE)
-            cleaned = re.sub(r"^Hot only:\s*", "", cleaned, flags=re.IGNORECASE)
-            return cleaned or None
-        break
-    return None
-
-
-def vietnamese_name(drink_blocks: list[tuple[str, str]]) -> str | None:
-    for kind, text in drink_blocks:
-        if kind == "heading":
-            if text in STRUCTURAL_HEADINGS:
-                return None
-            return text
-        return None
-    return None
-
-
-def derive_temperatures(name_en: str, drink_blocks: list[tuple[str, str]]) -> list[str]:
-    if name_en in TEMPERATURE_OVERRIDES:
-        return list(TEMPERATURE_OVERRIDES[name_en])
-    full_text = "\n".join(text for _, text in drink_blocks).lower()
-    if "iced only" in full_text:
-        return ["iced"]
-    if "hot or iced" in full_text:
-        return ["hot", "iced"]
-    if "**hot:**" in full_text and "**iced:**" in full_text:
-        return ["hot", "iced"]
-    for kind, text in drink_blocks:
-        if kind == "list":
-            for line in text.splitlines():
-                if ICE_WORD_RE.search(line) and "ice cream" not in line.lower():
-                    return ["iced"]
-    if "served iced" in full_text:
-        return ["iced"]
-    return ["hot"]
-
-
 def parse_section_note(lines: list[str]) -> str | None:
     paragraphs: list[str] = []
     for line in lines:
@@ -316,96 +111,34 @@ def parse_section_note(lines: list[str]) -> str | None:
     return cleaned or None
 
 
-def parse_drink_section(lines: list[str]) -> list[Item]:
-    items: list[Item] = []
-    for name_en, drink_lines in split_drinks(lines):
-        drink_blocks = blocks(drink_lines)
-        name_vi = VIETNAMESE_NAME_OVERRIDES.get(name_en) or vietnamese_name(drink_blocks)
-        items.append(
-            Item(
-                name_en=name_en,
-                name_vi=name_vi,
-                description=first_paragraph_after_name(drink_blocks),
-                temperatures=derive_temperatures(name_en, drink_blocks),
-            )
-        )
-    return items
-
-
-def parse_foam_matrix(lines: list[str]) -> list[str]:
-    builds: list[str] = []
-    in_matrix = False
-    for line in lines:
-        if line.startswith("### "):
-            in_matrix = line.strip() == "### Foam Matrix"
-            continue
-        if in_matrix and line.startswith("|"):
-            cells = [cell.strip() for cell in line.strip("|").split("|")]
-            if not cells or set(cells[0]) <= {"-", " ", ":"}:
-                continue
-            link = re.match(r"\[([^\]]+)\]", cells[0])
-            if link:
-                build = link.group(1).strip()
-                if build.lower() not in {"build"} and build not in builds:
-                    builds.append(build)
-    return builds
-
-
-def foam_description(build: str, section_lines: list[str]) -> str | None:
-    headings = ["Base Foam"] if build == "Base" else [f"{build} Cold Foam"]
-    section_blocks = blocks(section_lines)
-    for index, (kind, text) in enumerate(section_blocks):
-        if kind == "heading" and text in headings:
-            for block_kind, block_text in section_blocks[index + 1:]:
-                if block_kind == "heading":
-                    break
-                if block_kind == "paragraph" and not is_serve_cue(block_text):
-                    return strip_markdown(block_text)
-            break
-    return FOAM_DESCRIPTION_FALLBACKS.get(build)
-
-
-def parse_foam_section(lines: list[str]) -> list[Item]:
-    items: list[Item] = []
-    for build in parse_foam_matrix(lines):
-        name_en = "Base Foam" if build == "Base" else f"{build} Cold Foam"
-        items.append(
-            Item(
-                name_en=name_en,
-                name_vi=FOAM_VIETNAMESE_NAMES.get(build),
-                description=foam_description(build, lines),
-                temperatures=["iced"],
-            )
-        )
-    return items
+def source_title_by_section_id() -> dict[str, str]:
+    titles = {spec[0]: source_title for source_title, spec in SECTION_MAP.items()}
+    kem_id, _, _ = menu_source.KEM_SECTION
+    titles[kem_id] = "Cold Foams"
+    return titles
 
 
 def parse_menu(text: str) -> Menu:
-    top_sections = split_top_sections(text)
-    mapped: dict[str, Section] = {}
-    for source_title, lines in top_sections.items():
-        if source_title in SECTION_MAP:
-            section_id, title_vi, title_en = SECTION_MAP[source_title]
-            mapped[section_id] = Section(
-                id=section_id, title_vi=title_vi, title_en=title_en,
-                items=parse_drink_section(lines),
-                note=parse_section_note(lines),
+    source_menu = menu_source.parse_menu(text)
+    top_sections = menu_source.split_top_sections(text)
+    titles = source_title_by_section_id()
+    kem_id = menu_source.KEM_SECTION[0]
+    sections = []
+    for source_section in source_menu.sections:
+        note = None
+        if source_section.id != kem_id:
+            note = parse_section_note(top_sections.get(titles[source_section.id], []))
+        sections.append(
+            Section(
+                id=source_section.id,
+                title_vi=source_section.title_vi,
+                title_en=source_section.title_en,
+                items=source_section.items,
+                note=note,
+                show_pills=source_section.id != kem_id,
             )
-        elif source_title not in KNOWN_NON_DRINK_SECTIONS:
-            raise UnmappedSectionError(
-                f"recipes section {source_title!r} is not mapped to a menu section; "
-                f"add it to SECTION_MAP or KNOWN_NON_DRINK_SECTIONS in site/generate.py"
-            )
-    kem_id, kem_vi, kem_en = KEM_SECTION
-    foam_lines = top_sections.get("Cold Foams", [])
-    if "Cold Foams" in top_sections:
-        mapped[kem_id] = Section(
-            id=kem_id, title_vi=kem_vi, title_en=kem_en,
-            items=parse_foam_section(foam_lines),
-            show_pills=False,
         )
-    order = [spec[0] for spec in SECTION_MAP.values()] + [kem_id]
-    return Menu(sections=[mapped[section_id] for section_id in order if section_id in mapped])
+    return Menu(sections=sections)
 
 
 def render_pills(temperatures: list[str]) -> str:

@@ -142,7 +142,7 @@ export interface components {
         };
         /**
          * Category
-         * @description One of the five drink sections of the recipes menu.
+         * @description One of the five drink sections of the recipes drink menu.
          * @example {
          *       "id": "ca-phe",
          *       "name": "Coffee",
@@ -158,7 +158,7 @@ export interface components {
             id: string;
             /**
              * Namevi
-             * @description Section heading as printed on the recipes menu.
+             * @description Section heading as printed on the house drink menu.
              * @example Cà Phê
              */
             nameVi: string;
@@ -304,13 +304,13 @@ export interface components {
             name: string;
             /**
              * Namevi
-             * @description Vietnamese name as printed on the recipes menu.
+             * @description Vietnamese name as printed on the house drink menu.
              * @example Matcha Sữa
              */
             nameVi: string;
             /**
              * Description
-             * @description English description from the recipes menu.
+             * @description English description from the house drink menu.
              * @example Koicha whisked thick, your sweetener and milk of choice.
              */
             description: string;

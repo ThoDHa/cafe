@@ -9,7 +9,7 @@ The requirements live in the [PRD](PRD.md). The decided solution (architecture, 
 ## Product at a Glance
 
 - One web application, two surfaces: guest ordering and a barista queue at a dedicated path
-- Drinks only: the menus live in [`menu/`](menu/); the five sections of the house drink menu [`menu/menu.html`](menu/menu.html) (Cà Phê, Mát-cha, Trà, Giải Khát, Kem) with per-drink customization (temperature, milk, sweetener, sweetness, cold foam on iced, notes, quantity); `menu.json` is generated from it via `make menu`, and hand-editing is prohibited; no prices, matching the source menu
+- Drinks only: the menus live in [`menu/`](menu/); the five drink sections of the recipes menu (Cà Phê, Mát-cha, Trà, Giải Khát, Kem) with per-drink customization (temperature, milk, sweetener, sweetness, cold foam on iced, notes, quantity); `menu.json` is generated from the recipes repository plus [`menu/ordering-overrides.json`](menu/ordering-overrides.json) via `make menu`, and hand-editing is prohibited; no prices, matching the source menu
 - Live both ways: new orders reach the barista without refresh, ready status reaches the guest without refresh, with notifications in both directions
 - Per-device order history with one-tap reorder
 - Orders persist across restarts; the system runs with one command, plain or containerized

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/ThoDHa/cafe/menu/menu.schema.json",
   "title": "Cafe Ong Tho menu",
-  "description": "The orderable menu extracted from the recipes repository. Encodes the customization model frozen for v1: temperature per item, modifier groups for milk (options may vary by temperature), sweetener type, the standard sweetness scale, and cold foam restricted to iced service. Notes and quantity bounds live in orderRules and are enforced again on every order line by the API contract.",
+  "description": "The orderable menu generated from the recipes repository's cafe.md plus the ordering enrichment config (menu/ordering-overrides.json). Encodes the customization model frozen for v1: temperature per item, modifier groups for milk (options may vary by temperature), sweetener type, the standard sweetness scale, and cold foam restricted to iced service. Notes and quantity bounds live in orderRules and are enforced again on every order line by the API contract.",
   "type": "object",
   "additionalProperties": false,
   "required": ["version", "orderRules", "categories", "modifierGroups", "items"],
@@ -39,7 +39,7 @@
     "categories": {
       "type": "array",
       "minItems": 1,
-      "description": "The five drink sections of the recipes menu, in display order.",
+      "description": "The five drink sections of the house drink menu, in display order.",
       "items": { "$ref": "#/$defs/category" }
     },
     "modifierGroups": {
@@ -63,7 +63,7 @@
     },
     "temperature": {
       "enum": ["hot", "iced"],
-      "description": "Service temperature. Derived from the nong/da tags of the recipes menu."
+      "description": "Service temperature. Derived from the recipes prose, with config overrides where the prose cannot prove it."
     },
     "category": {
       "type": "object",
@@ -74,12 +74,12 @@
         "nameVi": {
           "type": "string",
           "minLength": 1,
-          "description": "Section heading as printed on the recipes menu."
+          "description": "Section heading as printed on the house drink menu."
         },
         "name": {
           "type": "string",
           "minLength": 1,
-          "description": "English section label from the recipes menu."
+          "description": "English section label from the house drink menu."
         }
       }
     },
@@ -198,12 +198,12 @@
         "nameVi": {
           "type": "string",
           "minLength": 1,
-          "description": "Vietnamese name as printed on the recipes menu."
+          "description": "Vietnamese name as printed on the drinks menu."
         },
         "description": {
           "type": "string",
           "minLength": 1,
-          "description": "English description from the recipes menu."
+          "description": "English menu description."
         },
         "categoryId": { "$ref": "#/$defs/identifier" },
         "temperatures": {
@@ -211,7 +211,7 @@
           "minItems": 1,
           "uniqueItems": true,
           "items": { "$ref": "#/$defs/temperature" },
-          "description": "Offered service temperatures; at least one, from the nong/da tags."
+          "description": "Offered service temperatures; at least one, derived from the recipes."
         },
         "modifierGroupIds": {
           "type": "array",

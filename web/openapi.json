@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Cafe Ông Thọ ordering API",
-    "description": "Ordering API for the Cafe Ông Thọ home cafe. Guests browse the menu, customize drinks within each item's rules, and follow their order's status live; the barista surface works the queue and moves orders through placed, in_progress, completed, or cancelled. Liveness arrives over Server-Sent Events at /api/events. The menu is the five drink sections of the recipes (Cà Phê, Mát-cha, Trà, Giải Khát, Kem) with the customization model frozen for v1: temperature, milk, sweetener type, sweetness level, cold foam on iced only, notes up to 200 characters, quantity 1 to 10 per line.",
+    "description": "Ordering API for the Cafe Ông Thọ home cafe. Guests browse the menu, customize drinks within each item's rules, and follow their order's status live; the barista surface works the queue and moves orders through placed, in_progress, completed, or cancelled. Liveness arrives over Server-Sent Events at /api/events. The menu is the five drink sections of the recipes drink menu (Cà Phê, Mát-cha, Trà, Giải Khát, Kem) with the customization model frozen for v1: temperature, milk, sweetener type, sweetness level, cold foam on iced only, notes up to 200 characters, quantity 1 to 10 per line.",
     "version": "0.1.0"
   },
   "paths": {
@@ -284,7 +284,7 @@
         "type": "object"
       },
       "Category": {
-        "description": "One of the five drink sections of the recipes menu.",
+        "description": "One of the five drink sections of the recipes drink menu.",
         "example": {
           "id": "ca-phe",
           "name": "Coffee",
@@ -300,7 +300,7 @@
             "type": "string"
           },
           "nameVi": {
-            "description": "Section heading as printed on the recipes menu.",
+            "description": "Section heading as printed on the house drink menu.",
             "examples": [
               "Cà Phê"
             ],
@@ -489,7 +489,7 @@
             "type": "string"
           },
           "nameVi": {
-            "description": "Vietnamese name as printed on the recipes menu.",
+            "description": "Vietnamese name as printed on the house drink menu.",
             "examples": [
               "Matcha Sữa"
             ],
@@ -497,7 +497,7 @@
             "type": "string"
           },
           "description": {
-            "description": "English description from the recipes menu.",
+            "description": "English description from the house drink menu.",
             "examples": [
               "Koicha whisked thick, your sweetener and milk of choice."
             ],

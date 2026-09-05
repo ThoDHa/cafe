@@ -31,8 +31,9 @@ API_DESCRIPTION = (
     "order's status live; the barista surface works the queue and moves "
     "orders through placed, in_progress, completed, or cancelled. "
     "Liveness arrives over Server-Sent Events at /api/events. The menu "
-    "is the five drink sections of the recipes (Cà Phê, Mát-cha, Trà, "
-    "Giải Khát, Kem) with the customization model frozen for v1: "
+    "is the five drink sections of the recipes drink menu "
+    "(Cà Phê, Mát-cha, Trà, Giải Khát, Kem) with the customization model "
+    "frozen for v1: "
     "temperature, milk, sweetener type, sweetness level, cold foam on "
     "iced only, notes up to 200 characters, quantity 1 to 10 per line."
 )

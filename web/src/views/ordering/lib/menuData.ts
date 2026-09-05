@@ -1,933 +1,906 @@
 import type { MenuDocument } from "../../../api/client";
 
 /*
- * Copied from menu/menu.json by a generator script, not by hand; regenerate
- * when the source menu changes. Absent imagePath normalizes to null, and
- * modifier groups carry defaultOptionId/defaultByTemperature as explicit
- * nulls, so the literal satisfies the generated MenuDocument type.
+ * Copied from menu/menu.json; regenerate it whenever the source menu
+ * changes, and keep the object literal strict JSON (double-quoted keys,
+ * no trailing commas) so site/test_menu_staleness.py can parse it.
+ * Absent imagePath normalizes to null, and modifier groups carry
+ * defaultOptionId/defaultByTemperature as explicit nulls, so the literal
+ * satisfies the generated MenuDocument type.
  */
 export const menuDocument: MenuDocument = {
-  version: 1,
-  orderRules: {
-    notesMaxLength: 200,
-    minQuantity: 1,
-    maxQuantity: 10
+  "version": 1,
+  "orderRules": {
+    "notesMaxLength": 200,
+    "minQuantity": 1,
+    "maxQuantity": 10
   },
-  categories: [
+  "categories": [
     {
-      id: "ca-phe",
-      nameVi: "Cà Phê",
-      name: "Coffee"
+      "id": "ca-phe",
+      "nameVi": "Cà Phê",
+      "name": "Coffee"
     },
     {
-      id: "mat-cha",
-      nameVi: "Mát-cha",
-      name: "Matcha"
+      "id": "mat-cha",
+      "nameVi": "Mát-cha",
+      "name": "Matcha"
     },
     {
-      id: "tra",
-      nameVi: "Trà",
-      name: "Tea"
+      "id": "tra",
+      "nameVi": "Trà",
+      "name": "Tea"
     },
     {
-      id: "giai-khat",
-      nameVi: "Giải Khát",
-      name: "Refreshers"
+      "id": "giai-khat",
+      "nameVi": "Giải Khát",
+      "name": "Refreshers"
     },
     {
-      id: "kem",
-      nameVi: "Kem",
-      name: "Cold Foams"
+      "id": "kem",
+      "nameVi": "Kem",
+      "name": "Cold Foams"
     }
   ],
-  modifierGroups: [
+  "modifierGroups": [
     {
-      id: "sweetness",
-      dimension: "sweetness_level",
-      name: "Sweetness",
-      required: true,
-      options: [
+      "id": "sweetness",
+      "dimension": "sweetness_level",
+      "name": "Sweetness",
+      "required": true,
+      "options": [
         {
-          id: "full",
-          name: "Full sweetness",
-          temperatures: [
+          "id": "full",
+          "name": "Full sweetness",
+          "temperatures": [
             "hot",
             "iced"
           ]
         },
         {
-          id: "75",
-          name: "75%",
-          temperatures: [
+          "id": "75",
+          "name": "75%",
+          "temperatures": [
             "hot",
             "iced"
           ]
         },
         {
-          id: "50",
-          name: "50%",
-          temperatures: [
+          "id": "50",
+          "name": "50%",
+          "temperatures": [
             "hot",
             "iced"
           ]
         },
         {
-          id: "25",
-          name: "25%",
-          temperatures: [
+          "id": "25",
+          "name": "25%",
+          "temperatures": [
             "hot",
             "iced"
           ]
         },
         {
-          id: "none",
-          name: "No sweetener",
-          temperatures: [
+          "id": "none",
+          "name": "No sweetener",
+          "temperatures": [
             "hot",
             "iced"
           ]
         }
       ],
-      defaultOptionId: "full",
-      defaultByTemperature: null
+      "defaultOptionId": "full",
+      "defaultByTemperature": null
     },
     {
-      id: "cold-foam",
-      dimension: "cold_foam",
-      name: "Cold foam",
-      required: false,
-      options: [
+      "id": "cold-foam",
+      "dimension": "cold_foam",
+      "name": "Cold foam",
+      "required": false,
+      "options": [
         {
-          id: "foam-base",
-          name: "Base Foam",
-          temperatures: [
+          "id": "foam-base",
+          "name": "Base Foam",
+          "temperatures": [
             "iced"
           ]
         },
         {
-          id: "foam-salted",
-          name: "Salted Cold Foam",
-          temperatures: [
+          "id": "foam-salted",
+          "name": "Salted Cold Foam",
+          "temperatures": [
             "iced"
           ]
         },
         {
-          id: "foam-matcha",
-          name: "Matcha Cold Foam",
-          temperatures: [
+          "id": "foam-matcha",
+          "name": "Matcha Cold Foam",
+          "temperatures": [
             "iced"
           ]
         },
         {
-          id: "foam-cheese",
-          name: "Cheese Cold Foam",
-          temperatures: [
+          "id": "foam-cheese",
+          "name": "Cheese Cold Foam",
+          "temperatures": [
             "iced"
           ]
         },
         {
-          id: "foam-strawberry",
-          name: "Strawberry Cold Foam",
-          temperatures: [
+          "id": "foam-strawberry",
+          "name": "Strawberry Cold Foam",
+          "temperatures": [
             "iced"
           ]
         },
         {
-          id: "foam-cocoa",
-          name: "Cocoa Cold Foam",
-          temperatures: [
+          "id": "foam-cocoa",
+          "name": "Cocoa Cold Foam",
+          "temperatures": [
             "iced"
           ]
         },
         {
-          id: "foam-tea",
-          name: "Tea Cold Foam",
-          temperatures: [
+          "id": "foam-tea",
+          "name": "Tea Cold Foam",
+          "temperatures": [
             "iced"
           ]
         },
         {
-          id: "foam-yogurt",
-          name: "Yogurt Cold Foam",
-          temperatures: [
+          "id": "foam-yogurt",
+          "name": "Yogurt Cold Foam",
+          "temperatures": [
             "iced"
           ]
         }
       ],
-      defaultOptionId: null,
-      defaultByTemperature: null
+      "defaultOptionId": null,
+      "defaultByTemperature": null
     },
     {
-      id: "milk-matcha-latte",
-      dimension: "milk",
-      name: "Milk",
-      required: true,
-      options: [
+      "id": "milk-matcha-latte",
+      "dimension": "milk",
+      "name": "Milk",
+      "required": true,
+      "options": [
         {
-          id: "whole-milk",
-          name: "Whole milk",
-          temperatures: [
+          "id": "whole-milk",
+          "name": "Whole milk",
+          "temperatures": [
             "hot"
           ]
         },
         {
-          id: "oat-milk",
-          name: "Oat milk",
-          temperatures: [
+          "id": "oat-milk",
+          "name": "Oat milk",
+          "temperatures": [
             "hot",
             "iced"
           ]
         },
         {
-          id: "milk-plus-cream",
-          name: "Milk + heavy cream",
-          temperatures: [
+          "id": "milk-plus-cream",
+          "name": "Milk + heavy cream",
+          "temperatures": [
             "iced"
           ]
         },
         {
-          id: "heavy-cream",
-          name: "Heavy whipping cream",
-          temperatures: [
+          "id": "heavy-cream",
+          "name": "Heavy whipping cream",
+          "temperatures": [
             "iced"
           ]
         },
         {
-          id: "half-and-half",
-          name: "Half and half",
-          temperatures: [
+          "id": "half-and-half",
+          "name": "Half and half",
+          "temperatures": [
             "iced"
           ]
         }
       ],
-      defaultOptionId: null,
-      defaultByTemperature: {
-        hot: "whole-milk",
-        iced: "milk-plus-cream"
-      }
+      "defaultByTemperature": {
+        "hot": "whole-milk",
+        "iced": "milk-plus-cream"
+      },
+      "defaultOptionId": null
     },
     {
-      id: "milk-bac-xiu",
-      dimension: "milk",
-      name: "Milk",
-      required: true,
-      options: [
+      "id": "milk-house-latte",
+      "dimension": "milk",
+      "name": "Milk",
+      "required": true,
+      "options": [
         {
-          id: "whole-milk",
-          name: "Whole milk",
-          temperatures: [
+          "id": "whole-milk",
+          "name": "Whole milk",
+          "temperatures": [
+            "hot"
+          ]
+        },
+        {
+          "id": "milk-plus-cream",
+          "name": "Milk + heavy cream",
+          "temperatures": [
+            "iced"
+          ]
+        },
+        {
+          "id": "heavy-cream",
+          "name": "Heavy whipping cream",
+          "temperatures": [
+            "iced"
+          ]
+        },
+        {
+          "id": "half-and-half",
+          "name": "Half and half",
+          "temperatures": [
+            "iced"
+          ]
+        }
+      ],
+      "defaultByTemperature": {
+        "hot": "whole-milk",
+        "iced": "milk-plus-cream"
+      },
+      "defaultOptionId": null
+    },
+    {
+      "id": "milk-cortado",
+      "dimension": "milk",
+      "name": "Milk",
+      "required": true,
+      "options": [
+        {
+          "id": "whole-milk",
+          "name": "Whole milk",
+          "temperatures": [
+            "hot"
+          ]
+        },
+        {
+          "id": "oat-milk",
+          "name": "Oat milk",
+          "temperatures": [
+            "hot"
+          ]
+        }
+      ],
+      "defaultByTemperature": {
+        "hot": "whole-milk"
+      },
+      "defaultOptionId": null
+    },
+    {
+      "id": "milk-strawberry",
+      "dimension": "milk",
+      "name": "Milk",
+      "required": true,
+      "options": [
+        {
+          "id": "whole-milk",
+          "name": "Whole milk",
+          "temperatures": [
+            "iced"
+          ]
+        },
+        {
+          "id": "two-percent-milk",
+          "name": "2% milk",
+          "temperatures": [
+            "iced"
+          ]
+        }
+      ],
+      "defaultByTemperature": {
+        "iced": "whole-milk"
+      },
+      "defaultOptionId": null
+    },
+    {
+      "id": "sweetener-matcha",
+      "dimension": "sweetener_type",
+      "name": "Sweetener",
+      "required": true,
+      "options": [
+        {
+          "id": "condensed-milk",
+          "name": "Condensed milk",
+          "temperatures": [
             "hot",
             "iced"
           ]
         },
         {
-          id: "milk-plus-cream",
-          name: "Milk + heavy cream",
-          temperatures: [
-            "iced"
-          ]
-        }
-      ],
-      defaultOptionId: null,
-      defaultByTemperature: {
-        hot: "whole-milk",
-        iced: "whole-milk"
-      }
-    },
-    {
-      id: "milk-house-latte",
-      dimension: "milk",
-      name: "Milk",
-      required: true,
-      options: [
-        {
-          id: "whole-milk",
-          name: "Whole milk",
-          temperatures: [
-            "hot"
-          ]
-        },
-        {
-          id: "milk-plus-cream",
-          name: "Milk + heavy cream",
-          temperatures: [
-            "iced"
-          ]
-        },
-        {
-          id: "heavy-cream",
-          name: "Heavy whipping cream",
-          temperatures: [
-            "iced"
-          ]
-        },
-        {
-          id: "half-and-half",
-          name: "Half and half",
-          temperatures: [
-            "iced"
-          ]
-        }
-      ],
-      defaultOptionId: null,
-      defaultByTemperature: {
-        hot: "whole-milk",
-        iced: "milk-plus-cream"
-      }
-    },
-    {
-      id: "milk-cortado",
-      dimension: "milk",
-      name: "Milk",
-      required: true,
-      options: [
-        {
-          id: "whole-milk",
-          name: "Whole milk",
-          temperatures: [
-            "hot"
-          ]
-        },
-        {
-          id: "oat-milk",
-          name: "Oat milk",
-          temperatures: [
-            "hot"
-          ]
-        }
-      ],
-      defaultOptionId: null,
-      defaultByTemperature: {
-        hot: "whole-milk"
-      }
-    },
-    {
-      id: "milk-strawberry",
-      dimension: "milk",
-      name: "Milk",
-      required: true,
-      options: [
-        {
-          id: "whole-milk",
-          name: "Whole milk",
-          temperatures: [
-            "iced"
-          ]
-        },
-        {
-          id: "two-percent-milk",
-          name: "2% milk",
-          temperatures: [
-            "iced"
-          ]
-        }
-      ],
-      defaultOptionId: null,
-      defaultByTemperature: {
-        iced: "whole-milk"
-      }
-    },
-    {
-      id: "sweetener-matcha",
-      dimension: "sweetener_type",
-      name: "Sweetener",
-      required: true,
-      options: [
-        {
-          id: "condensed-milk",
-          name: "Condensed milk",
-          temperatures: [
-            "hot",
-            "iced"
-          ]
-        },
-        {
-          id: "turbinado-syrup",
-          name: "Turbinado syrup",
-          temperatures: [
+          "id": "turbinado-syrup",
+          "name": "Turbinado syrup",
+          "temperatures": [
             "hot",
             "iced"
           ]
         }
       ],
-      defaultOptionId: "condensed-milk",
-      defaultByTemperature: null
+      "defaultOptionId": "condensed-milk",
+      "defaultByTemperature": null
     },
     {
-      id: "sweetener-undertow",
-      dimension: "sweetener_type",
-      name: "Sweetener",
-      required: true,
-      options: [
+      "id": "sweetener-undertow",
+      "dimension": "sweetener_type",
+      "name": "Sweetener",
+      "required": true,
+      "options": [
         {
-          id: "turbinado-syrup",
-          name: "Turbinado syrup",
-          temperatures: [
+          "id": "turbinado-syrup",
+          "name": "Turbinado syrup",
+          "temperatures": [
             "hot"
           ]
         },
         {
-          id: "condensed-milk",
-          name: "Condensed milk",
-          temperatures: [
+          "id": "condensed-milk",
+          "name": "Condensed milk",
+          "temperatures": [
             "hot"
           ]
         }
       ],
-      defaultOptionId: "turbinado-syrup",
-      defaultByTemperature: null
+      "defaultOptionId": "turbinado-syrup",
+      "defaultByTemperature": null
     },
     {
-      id: "sweetener-matcha-undertow",
-      dimension: "sweetener_type",
-      name: "Sweetener",
-      required: true,
-      options: [
+      "id": "sweetener-matcha-undertow",
+      "dimension": "sweetener_type",
+      "name": "Sweetener",
+      "required": true,
+      "options": [
         {
-          id: "turbinado-syrup",
-          name: "Turbinado syrup",
-          temperatures: [
+          "id": "turbinado-syrup",
+          "name": "Turbinado syrup",
+          "temperatures": [
             "hot"
           ]
         },
         {
-          id: "condensed-milk",
-          name: "Condensed milk",
-          temperatures: [
+          "id": "condensed-milk",
+          "name": "Condensed milk",
+          "temperatures": [
             "hot"
           ]
         },
         {
-          id: "strawberry-cheong",
-          name: "Strawberry cheong",
-          temperatures: [
+          "id": "strawberry-cheong",
+          "name": "Strawberry cheong",
+          "temperatures": [
             "hot"
           ]
         }
       ],
-      defaultOptionId: "turbinado-syrup",
-      defaultByTemperature: null
+      "defaultOptionId": "turbinado-syrup",
+      "defaultByTemperature": null
     }
   ],
-  items: [
+  "items": [
     {
-      id: "sua-da",
-      name: "Vietnamese Iced Coffee",
-      nameVi: "Sữa Đá",
-      description: "Dark-roast concentrate over Ông Thọ condensed milk, hot or over ice.",
-      categoryId: "ca-phe",
-      temperatures: [
+      "id": "black-coffee",
+      "name": "Black Coffee",
+      "nameVi": "Cà Phê Đen",
+      "description": "Coffee served straight, hot or over ice. The short version is more intense; the long version is fuller and milder.",
+      "categoryId": "ca-phe",
+      "temperatures": [
         "hot",
         "iced"
       ],
-      modifierGroupIds: [
+      "modifierGroupIds": [
         "sweetness",
         "cold-foam"
       ],
-      imagePath: null
+      "imagePath": null
     },
     {
-      id: "bac-xiu",
-      name: "Saigon White",
-      nameVi: "Bạc Xỉu",
-      description: "Sữa đá lengthened with a generous pour of milk.",
-      categoryId: "ca-phe",
-      temperatures: [
+      "id": "sua-da",
+      "name": "Vietnamese Iced Coffee",
+      "nameVi": "Sữa Đá",
+      "description": "Dark-roast concentrate over Ông Thọ condensed milk, hot or over ice.",
+      "categoryId": "ca-phe",
+      "temperatures": [
         "hot",
         "iced"
       ],
-      modifierGroupIds: [
-        "milk-bac-xiu",
+      "modifierGroupIds": [
         "sweetness",
         "cold-foam"
       ],
-      imagePath: null
+      "imagePath": null
     },
     {
-      id: "cortado",
-      name: "Cortado",
-      nameVi: "Cortado",
-      description: "Equal parts concentrate and silky steamed milk.",
-      categoryId: "ca-phe",
-      temperatures: [
+      "id": "cortado",
+      "name": "Cortado",
+      "nameVi": "Cortado",
+      "description": "Equal parts concentrate and silky steamed milk.",
+      "categoryId": "ca-phe",
+      "temperatures": [
         "hot"
       ],
-      modifierGroupIds: [
+      "modifierGroupIds": [
         "milk-cortado"
       ],
-      imagePath: null
+      "imagePath": null
     },
     {
-      id: "undertow",
-      name: "Undertow",
-      nameVi: "Undertow",
-      description: "Hot concentrate floated over cold sweetened cream. No stirring: two or three gulps.",
-      categoryId: "ca-phe",
-      temperatures: [
-        "hot"
-      ],
-      modifierGroupIds: [
-        "sweetener-undertow",
-        "sweetness"
-      ],
-      imagePath: null
-    },
-    {
-      id: "house-latte",
-      name: "House Latte",
-      nameVi: "House Latte",
-      description: "Coffee concentrate sweetened with turbinado sugar, your choice of milk.",
-      categoryId: "ca-phe",
-      temperatures: [
+      "id": "house-latte",
+      "name": "House Latte",
+      "nameVi": "House Latte",
+      "description": "Coffee concentrate sweetened with turbinado sugar, your choice of milk.",
+      "categoryId": "ca-phe",
+      "temperatures": [
         "hot",
         "iced"
       ],
-      modifierGroupIds: [
+      "modifierGroupIds": [
         "milk-house-latte",
         "sweetness",
         "cold-foam"
       ],
-      imagePath: null
+      "imagePath": null
     },
     {
-      id: "ca-phe-lac",
-      name: "Cinnamon Oat Shakerato",
-      nameVi: "Cà Phê Lắc",
-      description: "Concentrate shaken frothy with cinnamon and turbinado sugar, topped with oat milk.",
-      categoryId: "ca-phe",
-      temperatures: [
-        "iced"
-      ],
-      modifierGroupIds: [
-        "sweetness",
-        "cold-foam"
-      ],
-      imagePath: null
-    },
-    {
-      id: "ca-phe-cacao",
-      name: "Mocha",
-      nameVi: "Cà Phê Cacao",
-      description: "Cocoa folded into hot concentrate, finished with frothed milk.",
-      categoryId: "ca-phe",
-      temperatures: [
+      "id": "ca-phe-cacao",
+      "name": "Mocha",
+      "nameVi": "Cà Phê Cacao",
+      "description": "Cocoa folded into hot concentrate, finished with frothed milk.",
+      "categoryId": "ca-phe",
+      "temperatures": [
         "hot",
         "iced"
       ],
-      modifierGroupIds: [
+      "modifierGroupIds": [
         "sweetness",
         "cold-foam"
       ],
-      imagePath: null
+      "imagePath": null
     },
     {
-      id: "ca-phe-tonic",
-      name: "Coffee Tonic",
-      nameVi: "Cà Phê Tonic",
-      description: "Chilled concentrate over tonic water, orange bitters and peel.",
-      categoryId: "ca-phe",
-      temperatures: [
+      "id": "ca-phe-lac",
+      "name": "Cinnamon Oat Shakerato",
+      "nameVi": "Cà Phê Lắc",
+      "description": "Concentrate shaken frothy with cinnamon and turbinado sugar, topped with oat milk.",
+      "categoryId": "ca-phe",
+      "temperatures": [
         "iced"
       ],
-      modifierGroupIds: [
+      "modifierGroupIds": [
         "sweetness",
         "cold-foam"
       ],
-      imagePath: null
+      "imagePath": null
     },
     {
-      id: "ca-phe-kem",
-      name: "Affogato",
-      nameVi: "Cà Phê Kem",
-      description: "Hot concentrate poured over vanilla ice cream.",
-      categoryId: "ca-phe",
-      temperatures: [
+      "id": "undertow",
+      "name": "Undertow",
+      "nameVi": "Undertow",
+      "description": "Hot concentrate floated over cold sweetened cream. No stirring: two or three gulps.",
+      "categoryId": "ca-phe",
+      "temperatures": [
         "hot"
       ],
-      modifierGroupIds: [],
-      imagePath: null
+      "modifierGroupIds": [
+        "sweetener-undertow",
+        "sweetness"
+      ],
+      "imagePath": null
     },
     {
-      id: "ca-phe-pha-tay",
-      name: "Pour Over",
-      nameVi: "Cà Phê Pha Tay",
-      description: "Single origin, brewed to order: hot, or flash-brewed over ice. Bean selection varies.",
-      categoryId: "ca-phe",
-      temperatures: [
-        "hot",
+      "id": "ca-phe-tonic",
+      "name": "Coffee Tonic",
+      "nameVi": "Cà Phê Tonic",
+      "description": "Chilled concentrate over tonic water, orange bitters and peel.",
+      "categoryId": "ca-phe",
+      "temperatures": [
         "iced"
       ],
-      modifierGroupIds: [
+      "modifierGroupIds": [
+        "sweetness",
         "cold-foam"
       ],
-      imagePath: null
+      "imagePath": null
     },
     {
-      id: "matcha-sua",
-      name: "Matcha Latte",
-      nameVi: "Matcha Sữa",
-      description: "Koicha whisked thick, your sweetener and milk of choice.",
-      categoryId: "mat-cha",
-      temperatures: [
+      "id": "ca-phe-kem",
+      "name": "Affogato",
+      "nameVi": "Cà Phê Kem",
+      "description": "Hot concentrate poured over vanilla ice cream.",
+      "categoryId": "ca-phe",
+      "temperatures": [
+        "hot"
+      ],
+      "modifierGroupIds": [],
+      "imagePath": null
+    },
+    {
+      "id": "ca-phe-pha-tay",
+      "name": "Pour Over",
+      "nameVi": "Cà Phê Pha Tay",
+      "description": "Single origin, brewed to order: hot, or flash-brewed over ice. Bean selection varies.",
+      "categoryId": "ca-phe",
+      "temperatures": [
         "hot",
         "iced"
       ],
-      modifierGroupIds: [
+      "modifierGroupIds": [
+        "cold-foam"
+      ],
+      "imagePath": null
+    },
+    {
+      "id": "tra-sua",
+      "name": "Milk Tea",
+      "nameVi": "Trà Sữa",
+      "description": "Concentrated oolong or black tea shaken rich and creamy with turbinado sugar.",
+      "categoryId": "tra",
+      "temperatures": [
+        "iced"
+      ],
+      "modifierGroupIds": [
+        "sweetness",
+        "cold-foam"
+      ],
+      "imagePath": null
+    },
+    {
+      "id": "tra-chanh",
+      "name": "Fresh Lemon Tea",
+      "nameVi": "Trà Chanh",
+      "description": "Chilled tea shaken with lemon and turbinado sugar.",
+      "categoryId": "tra",
+      "temperatures": [
+        "iced"
+      ],
+      "modifierGroupIds": [
+        "sweetness",
+        "cold-foam"
+      ],
+      "imagePath": null
+    },
+    {
+      "id": "tra",
+      "name": "Tea",
+      "nameVi": "Trà",
+      "description": "The house loose leaf: a hot pot brewed to temperature, or the chilled tea over ice. Tea selection varies.",
+      "categoryId": "tra",
+      "temperatures": [
+        "hot",
+        "iced"
+      ],
+      "modifierGroupIds": [
+        "cold-foam"
+      ],
+      "imagePath": null
+    },
+    {
+      "id": "tra-cong-phu",
+      "name": "Gongfu Tea",
+      "nameVi": "Trà Công Phu",
+      "description": "Oolong, black, or white; the pot and hot water come to your table, yours to steep. Tea selection varies.",
+      "categoryId": "tra",
+      "temperatures": [
+        "hot"
+      ],
+      "modifierGroupIds": [],
+      "imagePath": null
+    },
+    {
+      "id": "matcha-sua",
+      "name": "Matcha Latte",
+      "nameVi": "Matcha Sữa",
+      "description": "Koicha whisked thick, your sweetener and milk of choice.",
+      "categoryId": "mat-cha",
+      "temperatures": [
+        "hot",
+        "iced"
+      ],
+      "modifierGroupIds": [
         "milk-matcha-latte",
         "sweetener-matcha",
         "sweetness",
         "cold-foam"
       ],
-      imagePath: null
+      "imagePath": null
     },
     {
-      id: "matcha-ca-phe",
-      name: "Dirty Matcha",
-      nameVi: "Matcha Cà Phê",
-      description: "Matcha sweetened and lengthened with milk, layered with a shot of concentrate.",
-      categoryId: "mat-cha",
-      temperatures: [
+      "id": "matcha-ca-phe",
+      "name": "Dirty Matcha",
+      "nameVi": "Matcha Cà Phê",
+      "description": "Matcha sweetened and lengthened with milk, layered with a shot of concentrate.",
+      "categoryId": "mat-cha",
+      "temperatures": [
         "hot",
         "iced"
       ],
-      modifierGroupIds: [
+      "modifierGroupIds": [
         "milk-matcha-latte",
         "sweetener-matcha",
         "sweetness",
         "cold-foam"
       ],
-      imagePath: null
+      "imagePath": null
     },
     {
-      id: "matcha-undertow",
-      name: "Matcha Undertow",
-      nameVi: "Matcha Undertow",
-      description: "Warm koicha floated over cold sweetened cream. Make it strawberry with a strawberry cheong stir.",
-      categoryId: "mat-cha",
-      temperatures: [
+      "id": "dau-matcha",
+      "name": "Strawberry Matcha Latte",
+      "nameVi": "Dâu Matcha",
+      "description": "Strawberry cheong, cold milk, and a floated layer of koicha.",
+      "categoryId": "mat-cha",
+      "temperatures": [
+        "iced"
+      ],
+      "modifierGroupIds": [
+        "sweetness",
+        "cold-foam"
+      ],
+      "imagePath": null
+    },
+    {
+      "id": "dua-matcha",
+      "name": "Coconut Matcha Cloud",
+      "nameVi": "Dừa Matcha",
+      "description": "Coconut water under a cap of matcha cold foam.",
+      "categoryId": "mat-cha",
+      "temperatures": [
+        "iced"
+      ],
+      "modifierGroupIds": [
+        "cold-foam"
+      ],
+      "imagePath": null
+    },
+    {
+      "id": "matcha-undertow",
+      "name": "Matcha Undertow",
+      "nameVi": "Matcha Undertow",
+      "description": "Warm koicha floated over cold sweetened cream. Make it strawberry with a strawberry cheong stir.",
+      "categoryId": "mat-cha",
+      "temperatures": [
         "hot"
       ],
-      modifierGroupIds: [
+      "modifierGroupIds": [
         "sweetener-matcha-undertow",
         "sweetness"
       ],
-      imagePath: null
+      "imagePath": null
     },
     {
-      id: "dau-matcha",
-      name: "Strawberry Matcha Latte",
-      nameVi: "Dâu Matcha",
-      description: "Strawberry cheong, cold milk, and a floated layer of koicha.",
-      categoryId: "mat-cha",
-      temperatures: [
+      "id": "soda-matcha-dau",
+      "name": "Strawberry Matcha Soda",
+      "nameVi": "Soda Matcha Dâu",
+      "description": "Strawberry cheong under sparkling water, koicha floated on top.",
+      "categoryId": "mat-cha",
+      "temperatures": [
         "iced"
       ],
-      modifierGroupIds: [
+      "modifierGroupIds": [
         "sweetness",
         "cold-foam"
       ],
-      imagePath: null
+      "imagePath": null
     },
     {
-      id: "soda-matcha-dau",
-      name: "Strawberry Matcha Soda",
-      nameVi: "Soda Matcha Dâu",
-      description: "Strawberry cheong under sparkling water, koicha floated on top.",
-      categoryId: "mat-cha",
-      temperatures: [
+      "id": "matcha-tonic",
+      "name": "Matcha Tonic",
+      "nameVi": "Matcha Tonic",
+      "description": "Bright and lightly bitter, sparkling with orange peel.",
+      "categoryId": "mat-cha",
+      "temperatures": [
         "iced"
       ],
-      modifierGroupIds: [
+      "modifierGroupIds": [
         "sweetness",
         "cold-foam"
       ],
-      imagePath: null
+      "imagePath": null
     },
     {
-      id: "dua-matcha",
-      name: "Coconut Matcha Cloud",
-      nameVi: "Dừa Matcha",
-      description: "Coconut water under a cap of matcha cold foam.",
-      categoryId: "mat-cha",
-      temperatures: [
-        "iced"
-      ],
-      modifierGroupIds: [
-        "cold-foam"
-      ],
-      imagePath: null
-    },
-    {
-      id: "matcha-tonic",
-      name: "Matcha Tonic",
-      nameVi: "Matcha Tonic",
-      description: "Bright and lightly bitter, sparkling with orange peel.",
-      categoryId: "mat-cha",
-      temperatures: [
-        "iced"
-      ],
-      modifierGroupIds: [
-        "sweetness",
-        "cold-foam"
-      ],
-      imagePath: null
-    },
-    {
-      id: "matcha-kem",
-      name: "Matcha Affogato",
-      nameVi: "Matcha Kem",
-      description: "Warm koicha poured over vanilla ice cream. Make it strawberry with a strawberry cheong drizzle.",
-      categoryId: "mat-cha",
-      temperatures: [
+      "id": "matcha-kem",
+      "name": "Matcha Affogato",
+      "nameVi": "Matcha Kem",
+      "description": "Warm koicha poured over vanilla ice cream. Make it strawberry with a strawberry cheong drizzle.",
+      "categoryId": "mat-cha",
+      "temperatures": [
         "hot"
       ],
-      modifierGroupIds: [],
-      imagePath: null
+      "modifierGroupIds": [],
+      "imagePath": null
     },
     {
-      id: "tra",
-      name: "Tea",
-      nameVi: "Trà",
-      description: "The house loose leaf: a hot pot brewed to temperature, or the chilled tea over ice. Tea selection varies.",
-      categoryId: "tra",
-      temperatures: [
+      "id": "cacao-sua",
+      "name": "Cocoa",
+      "nameVi": "Cacao Sữa",
+      "description": "Cocoa whisked with turbinado sugar and milk, hot or over ice.",
+      "categoryId": "giai-khat",
+      "temperatures": [
         "hot",
         "iced"
       ],
-      modifierGroupIds: [
-        "cold-foam"
-      ],
-      imagePath: null
-    },
-    {
-      id: "tra-chanh",
-      name: "Fresh Lemon Tea",
-      nameVi: "Trà Chanh",
-      description: "Chilled tea shaken with lemon and turbinado sugar.",
-      categoryId: "tra",
-      temperatures: [
-        "iced"
-      ],
-      modifierGroupIds: [
+      "modifierGroupIds": [
         "sweetness",
         "cold-foam"
       ],
-      imagePath: null
+      "imagePath": null
     },
     {
-      id: "tra-sua",
-      name: "Milk Tea",
-      nameVi: "Trà Sữa",
-      description: "Concentrated oolong or black tea shaken rich and creamy with turbinado sugar.",
-      categoryId: "tra",
-      temperatures: [
+      "id": "sua-dau",
+      "name": "Strawberry Milk",
+      "nameVi": "Sữa Dâu",
+      "description": "House strawberry cheong stirred into cold milk over ice.",
+      "categoryId": "giai-khat",
+      "temperatures": [
         "iced"
       ],
-      modifierGroupIds: [
-        "sweetness",
-        "cold-foam"
-      ],
-      imagePath: null
-    },
-    {
-      id: "tra-cong-phu",
-      name: "Gongfu Tea",
-      nameVi: "Trà Công Phu",
-      description: "Oolong, black, or white; the pot and hot water come to your table, yours to steep. Tea selection varies.",
-      categoryId: "tra",
-      temperatures: [
-        "hot"
-      ],
-      modifierGroupIds: [],
-      imagePath: null
-    },
-    {
-      id: "cacao-sua",
-      name: "Cocoa",
-      nameVi: "Cacao Sữa",
-      description: "Cocoa whisked with turbinado sugar and milk, hot or over ice.",
-      categoryId: "giai-khat",
-      temperatures: [
-        "hot",
-        "iced"
-      ],
-      modifierGroupIds: [
-        "sweetness",
-        "cold-foam"
-      ],
-      imagePath: null
-    },
-    {
-      id: "sua-dau",
-      name: "Strawberry Milk",
-      nameVi: "Sữa Dâu",
-      description: "House strawberry cheong stirred into cold milk over ice.",
-      categoryId: "giai-khat",
-      temperatures: [
-        "iced"
-      ],
-      modifierGroupIds: [
+      "modifierGroupIds": [
         "milk-strawberry",
         "sweetness",
         "cold-foam"
       ],
-      imagePath: null
+      "imagePath": null
     },
     {
-      id: "soda-dau",
-      name: "Strawberry Fizz",
-      nameVi: "Soda Dâu",
-      description: "Strawberry cheong under sparkling water. Ask for it dirty: a float of cream.",
-      categoryId: "giai-khat",
-      temperatures: [
+      "id": "chanh-dam-sua",
+      "name": "Condensed Milk Limeade",
+      "nameVi": "Chanh Dầm Sữa",
+      "description": "Fresh lime pressed into sweetened condensed milk over crushed ice, with lime slices in the glass. Make it strawberry with a strawberry cheong stir.",
+      "categoryId": "giai-khat",
+      "temperatures": [
         "iced"
       ],
-      modifierGroupIds: [
+      "modifierGroupIds": [
         "sweetness",
         "cold-foam"
       ],
-      imagePath: null
+      "imagePath": null
     },
     {
-      id: "soda-dau-chanh",
-      name: "Strawberry Limeade",
-      nameVi: "Soda Dâu Chanh",
-      description: "Strawberry cheong shaken with fresh lime juice and sparkling water.",
-      categoryId: "giai-khat",
-      temperatures: [
+      "id": "soda-dau",
+      "name": "Strawberry Fizz",
+      "nameVi": "Soda Dâu",
+      "description": "Strawberry cheong under sparkling water. Ask for it dirty: a float of cream.",
+      "categoryId": "giai-khat",
+      "temperatures": [
         "iced"
       ],
-      modifierGroupIds: [
+      "modifierGroupIds": [
         "sweetness",
         "cold-foam"
       ],
-      imagePath: null
+      "imagePath": null
     },
     {
-      id: "chanh-dam-sua",
-      name: "Condensed Milk Limeade",
-      nameVi: "Chanh Dầm Sữa",
-      description: "Fresh lime pressed into sweetened condensed milk over crushed ice, with lime slices in the glass. Make it strawberry with a strawberry cheong stir.",
-      categoryId: "giai-khat",
-      temperatures: [
+      "id": "soda-dau-chanh",
+      "name": "Strawberry Limeade",
+      "nameVi": "Soda Dâu Chanh",
+      "description": "Strawberry cheong shaken with fresh lime juice and sparkling water.",
+      "categoryId": "giai-khat",
+      "temperatures": [
         "iced"
       ],
-      modifierGroupIds: [
+      "modifierGroupIds": [
         "sweetness",
         "cold-foam"
       ],
-      imagePath: null
+      "imagePath": null
     },
     {
-      id: "soda-chanh",
-      name: "Lime Fizz",
-      nameVi: "Soda Chanh",
-      description: "Fresh lime juice and turbinado sugar lengthened with sparkling water over ice.",
-      categoryId: "giai-khat",
-      temperatures: [
+      "id": "soda-chanh",
+      "name": "Lime Fizz",
+      "nameVi": "Soda Chanh",
+      "description": "Fresh lime juice and turbinado sugar lengthened with sparkling water over ice.",
+      "categoryId": "giai-khat",
+      "temperatures": [
         "iced"
       ],
-      modifierGroupIds: [
+      "modifierGroupIds": [
         "sweetness",
         "cold-foam"
       ],
-      imagePath: null
+      "imagePath": null
     },
     {
-      id: "kem-sua",
-      name: "Base Foam",
-      nameVi: "Kem Sữa",
-      description: "Cream and milk frothed thick, a touch of vanilla.",
-      categoryId: "kem",
-      temperatures: [
+      "id": "kem-sua",
+      "name": "Base Foam",
+      "nameVi": "Kem Sữa",
+      "description": "Cream and milk frothed thick, a touch of vanilla.",
+      "categoryId": "kem",
+      "temperatures": [
         "iced"
       ],
-      modifierGroupIds: [],
-      imagePath: null
+      "modifierGroupIds": [],
+      "imagePath": null
     },
     {
-      id: "kem-muoi",
-      name: "Salted Cold Foam",
-      nameVi: "Kem Muối",
-      description: "The base foam sharpened with a dash of salt.",
-      categoryId: "kem",
-      temperatures: [
+      "id": "kem-muoi",
+      "name": "Salted Cold Foam",
+      "nameVi": "Kem Muối",
+      "description": "The base foam sharpened with a dash of salt.",
+      "categoryId": "kem",
+      "temperatures": [
         "iced"
       ],
-      modifierGroupIds: [],
-      imagePath: null
+      "modifierGroupIds": [],
+      "imagePath": null
     },
     {
-      id: "kem-matcha",
-      name: "Matcha Cold Foam",
-      nameVi: "Kem Matcha",
-      description: "Whisked matcha folded into sweetened cream.",
-      categoryId: "kem",
-      temperatures: [
+      "id": "kem-dau",
+      "name": "Strawberry Cold Foam",
+      "nameVi": "Kem Dâu",
+      "description": "Strawberry cheong stirred into the base foam.",
+      "categoryId": "kem",
+      "temperatures": [
         "iced"
       ],
-      modifierGroupIds: [],
-      imagePath: null
+      "modifierGroupIds": [],
+      "imagePath": null
     },
     {
-      id: "kem-pho-mai",
-      name: "Cheese Cold Foam",
-      nameVi: "Kem Phô Mai",
-      description: "Cream cheese and cold cream, glossy with a pinch of salt.",
-      categoryId: "kem",
-      temperatures: [
+      "id": "kem-cacao",
+      "name": "Cocoa Cold Foam",
+      "nameVi": "Kem Cacao",
+      "description": "Cocoa and turbinado syrup whisked into the base foam.",
+      "categoryId": "kem",
+      "temperatures": [
         "iced"
       ],
-      modifierGroupIds: [],
-      imagePath: null
+      "modifierGroupIds": [],
+      "imagePath": null
     },
     {
-      id: "kem-dau",
-      name: "Strawberry Cold Foam",
-      nameVi: "Kem Dâu",
-      description: "Strawberry cheong stirred into the base foam.",
-      categoryId: "kem",
-      temperatures: [
+      "id": "kem-matcha",
+      "name": "Matcha Cold Foam",
+      "nameVi": "Kem Matcha",
+      "description": "Whisked matcha folded into sweetened cream.",
+      "categoryId": "kem",
+      "temperatures": [
         "iced"
       ],
-      modifierGroupIds: [],
-      imagePath: null
+      "modifierGroupIds": [],
+      "imagePath": null
     },
     {
-      id: "kem-cacao",
-      name: "Cocoa Cold Foam",
-      nameVi: "Kem Cacao",
-      description: "Cocoa and turbinado syrup whisked into the base foam.",
-      categoryId: "kem",
-      temperatures: [
+      "id": "kem-tra",
+      "name": "Tea Cold Foam",
+      "nameVi": "Kem Trà",
+      "description": "Oolong steeped into sweetened cream, a pinch of salt.",
+      "categoryId": "kem",
+      "temperatures": [
         "iced"
       ],
-      modifierGroupIds: [],
-      imagePath: null
+      "modifierGroupIds": [],
+      "imagePath": null
     },
     {
-      id: "kem-tra",
-      name: "Tea Cold Foam",
-      nameVi: "Kem Trà",
-      description: "Oolong steeped into sweetened cream, a pinch of salt.",
-      categoryId: "kem",
-      temperatures: [
+      "id": "kem-pho-mai",
+      "name": "Cheese Cold Foam",
+      "nameVi": "Kem Phô Mai",
+      "description": "Cream cheese and cold cream, glossy with a pinch of salt.",
+      "categoryId": "kem",
+      "temperatures": [
         "iced"
       ],
-      modifierGroupIds: [],
-      imagePath: null
+      "modifierGroupIds": [],
+      "imagePath": null
     },
     {
-      id: "kem-sua-chua",
-      name: "Yogurt Cold Foam",
-      nameVi: "Kem Sữa Chua",
-      description: "Vanilla yogurt loosened with cream, a tangy cap.",
-      categoryId: "kem",
-      temperatures: [
+      "id": "kem-sua-chua",
+      "name": "Yogurt Cold Foam",
+      "nameVi": "Kem Sữa Chua",
+      "description": "Vanilla yogurt loosened with cream, a tangy cap.",
+      "categoryId": "kem",
+      "temperatures": [
         "iced"
       ],
-      modifierGroupIds: [],
-      imagePath: null
+      "modifierGroupIds": [],
+      "imagePath": null
     }
   ]
 };

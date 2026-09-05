@@ -1,6 +1,6 @@
 SERVER_PORT ?= 8000
 
-.PHONY: dev test start export-openapi
+.PHONY: dev test start export-openapi generate-menu
 
 dev:
 	uv run uvicorn app.main:app --reload --port $(SERVER_PORT)
@@ -13,3 +13,6 @@ start:
 
 export-openapi:
 	uv run export-openapi --out ../web/openapi.json
+
+generate-menu:
+	uv run generate-menu

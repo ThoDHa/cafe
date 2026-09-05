@@ -73,14 +73,14 @@ class OrderRules(_ContractModel):
 
 
 class Category(_ContractModel):
-    """One of the five drink sections of the recipes menu."""
+    """One of the five drink sections of the recipes drink menu."""
 
     id: str = Field(
         description="Stable category slug, e.g. ca-phe.",
         examples=["ca-phe"],
     )
     name_vi: str = Field(
-        description="Section heading as printed on the recipes menu.",
+        description="Section heading as printed on the house drink menu.",
         examples=["Cà Phê"],
     )
     name: str = Field(
@@ -152,11 +152,11 @@ class MenuItem(_ContractModel):
         examples=["Matcha Latte"],
     )
     name_vi: str = Field(
-        description="Vietnamese name as printed on the recipes menu.",
+        description="Vietnamese name as printed on the house drink menu.",
         examples=["Matcha Sữa"],
     )
     description: str = Field(
-        description="English description from the recipes menu.",
+        description="English description from the house drink menu.",
         examples=["Koicha whisked thick, your sweetener and milk of choice."],
     )
     category_id: str = Field(

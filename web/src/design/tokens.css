@@ -1,8 +1,9 @@
 /*
- * Design tokens ported verbatim from recipes/menu.html: the cream and
- * cobalt palette, the Bungee/Lora/Be Vietnam Pro type stack, and the
+ * Design tokens carrying the house drinks-menu visual identity: the cream
+ * and cobalt palette, the Bungee/Lora/Be Vietnam Pro type stack, and the
  * nong/da pill treatment. One token set for both surfaces (DESIGN.md
- * section 5). Values must not drift from the recipes menu.
+ * section 5). Values are frozen; changing them means changing the house
+ * identity everywhere at once.
  */
 
 :root {
@@ -21,8 +22,7 @@
 }
 
 /*
- * Pill tags for temperature, matching .tag / .tag.nong / .tag.da of
- * the recipes menu declaration for declaration.
+ * Pill tags for temperature, the house drinks-menu nóng/đá treatment.
  */
 
 .pill {

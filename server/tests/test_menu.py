@@ -1,8 +1,9 @@
 """Validation suite for the shared menu document.
 
-The menu is hand-curated from ../recipes (menu.html sections and names,
-cafe.md per-drink rules), so these tests gate both structure and the
-frozen customization model from the PRD.
+The menu is generated from the recipes repository's cafe.md plus the
+checked-in menu/ordering-overrides.json, so these tests gate both
+structure and the frozen customization model from the PRD; generation
+round-trip coverage lives in test_menu_generation.py.
 """
 
 import json
@@ -195,6 +196,21 @@ def test_ca_phe_lac_is_iced_only() -> None:
     item = items_by_id()["ca-phe-lac"]
     assert item["temperatures"] == ["iced"]
     assert "cold-foam" in item["modifierGroupIds"]
+
+
+def test_black_coffee_is_orderable_with_the_default_rules() -> None:
+    item = items_by_id()["black-coffee"]
+    assert item["name"] == "Black Coffee"
+    assert item["nameVi"] == "Cà Phê Đen"
+    assert item["description"]
+    assert item["temperatures"] == ["hot", "iced"]
+    assert item["modifierGroupIds"] == ["sweetness", "cold-foam"]
+
+
+def test_bac_xiu_is_no_longer_on_the_menu() -> None:
+    ids = {item["id"] for item in menu()["items"]}
+    assert "bac-xiu" not in ids
+    assert "milk-bac-xiu" not in groups_by_id()
 
 
 def test_kem_items_are_standalone_foam_builds() -> None:

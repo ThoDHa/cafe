@@ -359,6 +359,7 @@ class TestRealRecipesFile:
     def test_real_spot_temperatures(self):
         menu = generate.parse_menu(RECIPES_CAFE.read_text())
         temps = menu.temperature_map()
+        assert temps["Black Coffee"] == ["hot", "iced"]
         assert temps["Coffee Tonic"] == ["iced"]
         assert temps["Gongfu Tea"] == ["hot"]
         assert temps["Pour Over Coffee"] == ["hot", "iced"]
@@ -384,6 +385,7 @@ class TestRealRecipesFile:
             "Milk Limeade": "Condensed Milk Limeade",
             "Hot Tea": "Tea",
             "Pour Over Coffee": "Pour Over",
+            "Vietnamese Coffee": "Vietnamese Iced Coffee",
         }
         mismatched = []
         for name_en, temps in menu.temperature_map().items():
