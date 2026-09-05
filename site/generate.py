@@ -11,16 +11,20 @@ concerns: section blurbs, templates, rendering, and the print-budget fit.
 Usage: uv run --with weasyprint python site/generate.py [--recipes PATH] [--out DIR]
 
 The build also enforces print budgets: weasyprint renders each page and the
-print root font size steps down until the drinks, kitchen, and bar pages fit
-two A4 and Letter pages and the compact page fits one, failing the build if
-the 11px floor cannot satisfy the budget. Pass --no-fit-pages to skip this
-pass (used by fast artifact tests).
+print root font size steps down until the drinks and kitchen pages fit two
+A4 and Letter pages and the compact and bar pages fit one, failing the build
+if the 11px floor cannot satisfy the budget. Pass --no-fit-pages to skip this
+pass (used by fast artifact tests). The published pages also reference the
+shared beforeprint scaler (menu/assets/print-fit.js), which refines the
+fitted root for the visitor's browser at print time; without JavaScript the
+build-injected fit applies unchanged.
 """
 
 from __future__ import annotations
 
 import argparse
 import html
+import json
 import re
 import shutil
 import sys
@@ -50,6 +54,9 @@ from menu_source import (  # noqa: E402,F401
 
 PRINT_PAGE_BUDGET = 2
 COMPACT_PAGE_BUDGET = 1
+# Bar prints as one page by user directive (2026-09-05 review); it fits the
+# default 16px root already, so this budget only guards against drift.
+BAR_PAGE_BUDGET = 1
 PRINT_ROOT_DEFAULT = 16.0
 PRINT_ROOT_FLOOR = 11.0
 PRINT_ROOT_STEP = 1.0
@@ -60,6 +67,31 @@ COMPACT_PRINT_ROOT_STEP = 0.25
 PAPER_SIZES = ("a4", "letter")
 PRINT_FIT_SEARCH_SIZE = "letter"
 PRINT_FIT_STYLE_ID = "print-fit"
+PRINT_SCALER_ASSET_NAME = "print-fit.js"
+
+
+def _scaler_config(budget: int, page_margins_mm: list[float]) -> dict:
+    return {
+        "budget": budget,
+        "cap": int(PRINT_ROOT_DEFAULT),
+        "paper": "letter",
+        "pageMarginsMm": page_margins_mm,
+    }
+
+
+# Print-time scaler configuration per published page: the page budget and
+# root cap mirrored from the build fit, plus the @page margins (top, bottom)
+# in mm each page declares for itself. kitchen/bar declare no @page rule, so
+# visitors' browsers apply their own default margins; 12.7mm (0.5in) is the
+# Firefox/Safari default and larger than Chrome's 10.2mm, which keeps the
+# scaler's page model conservative for those copies. Letter is the binding
+# paper for every page; A4 is taller and keeps its geometric remainder.
+PRINT_SCALER_CONFIGS = {
+    "menu.html": _scaler_config(PRINT_PAGE_BUDGET, [6, 17]),
+    "menu/compact.html": _scaler_config(COMPACT_PAGE_BUDGET, [6, 12]),
+    "kitchen.html": _scaler_config(PRINT_PAGE_BUDGET, [12.7, 12.7]),
+    "bar.html": _scaler_config(BAR_PAGE_BUDGET, [12.7, 12.7]),
+}
 
 
 class PrintFitError(Exception):
@@ -217,6 +249,16 @@ def inject_print_root(page_html: str, root_px: float) -> str:
     return page_html.replace("</head>", f"  {style}\n</head>", 1)
 
 
+def inject_print_scaler(page_html: str, page_name: str) -> str:
+    prefix = "../" if "/" in page_name else ""
+    payload = json.dumps(PRINT_SCALER_CONFIGS[page_name], separators=(",", ":"))
+    tag = (
+        f'<script defer src="{prefix}assets/{PRINT_SCALER_ASSET_NAME}" '
+        f"data-print-fit='{payload}'></script>"
+    )
+    return page_html.replace("</body>", f"  {tag}\n</body>", 1)
+
+
 def render_page_counts(
     page_html: str, base_url: Path | None = None, papers: tuple[str, ...] = PAPER_SIZES
 ) -> dict[str, int]:
@@ -273,11 +315,18 @@ def build_site(
 ) -> Menu:
     menu = parse_menu(recipes_path.read_text())
     out_dir.mkdir(parents=True, exist_ok=True)
+    scaler_asset = MENU_SOURCE_DIR.joinpath("assets", PRINT_SCALER_ASSET_NAME)
+    if not scaler_asset.is_file():
+        raise RuntimeError(
+            f"missing {scaler_asset}; the published pages reference it "
+            "for print-time scaling"
+        )
     fitted: list[tuple[str, float | None]] = []
     menu_page = render_menu_page(menu)
     if fit_pages:
         menu_page, menu_root = fit_print_root(menu_page, label="menu.html")
         fitted.append(("index.html", menu_root))
+    menu_page = inject_print_scaler(menu_page, "menu.html")
     (out_dir / "index.html").write_text(menu_page)
     (out_dir / "menu.html").write_text(menu_page)
     compact_page = render_compact_page(menu)
@@ -289,13 +338,21 @@ def build_site(
             step=COMPACT_PRINT_ROOT_STEP,
         )
         fitted.append(("menu/compact.html", compact_root))
+    compact_page = inject_print_scaler(compact_page, "menu/compact.html")
     (out_dir / "menu").mkdir(exist_ok=True)
     (out_dir / "menu" / "compact.html").write_text(compact_page)
+    copied_page_budgets = {
+        "kitchen.html": PRINT_PAGE_BUDGET,
+        "bar.html": BAR_PAGE_BUDGET,
+    }
     for page in ("kitchen.html", "bar.html"):
         page_html = (MENU_SOURCE_DIR / page).read_text()
         if fit_pages:
-            page_html, page_root = fit_print_root(page_html, label=page)
+            page_html, page_root = fit_print_root(
+                page_html, label=page, max_pages=copied_page_budgets[page]
+            )
             fitted.append((page, page_root))
+        page_html = inject_print_scaler(page_html, page)
         (out_dir / page).write_text(page_html)
     assets_out = out_dir / "assets"
     assets_out.mkdir(exist_ok=True)
