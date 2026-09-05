@@ -53,6 +53,10 @@ COMPACT_PAGE_BUDGET = 1
 PRINT_ROOT_DEFAULT = 16.0
 PRINT_ROOT_FLOOR = 11.0
 PRINT_ROOT_STEP = 1.0
+# The compact page spends its slack on spacing, so its fit runs close to the
+# page edge; a finer step keeps a drift below the integer root from falling a
+# whole pixel and reopening a dead band at the bottom of the page.
+COMPACT_PRINT_ROOT_STEP = 0.25
 PAPER_SIZES = ("a4", "letter")
 PRINT_FIT_SEARCH_SIZE = "letter"
 PRINT_FIT_STYLE_ID = "print-fit"
@@ -233,7 +237,10 @@ def render_page_counts(
 
 
 def fit_print_root(
-    page_html: str, label: str, max_pages: int = PRINT_PAGE_BUDGET
+    page_html: str,
+    label: str,
+    max_pages: int = PRINT_PAGE_BUDGET,
+    step: float = PRINT_ROOT_STEP,
 ) -> tuple[str, float | None]:
     marker = f'id="{PRINT_FIT_STYLE_ID}"'
     had_marker = marker in page_html
@@ -258,7 +265,7 @@ def fit_print_root(
                 f"{PRINT_ROOT_FLOOR:g}px floor (measured {search_counts} on "
                 f"{PRINT_FIT_SEARCH_SIZE}); remove items or raise the page budget"
             )
-        root = round(root - PRINT_ROOT_STEP, 2)
+        root = round(root - step, 2)
 
 
 def build_site(
@@ -279,6 +286,7 @@ def build_site(
             compact_page,
             label="menu/compact.html",
             max_pages=COMPACT_PAGE_BUDGET,
+            step=COMPACT_PRINT_ROOT_STEP,
         )
         fitted.append(("menu/compact.html", compact_root))
     (out_dir / "menu").mkdir(exist_ok=True)

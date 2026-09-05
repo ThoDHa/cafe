@@ -547,6 +547,25 @@ class TestPrintFit:
         else:
             raise AssertionError("expected PrintFitError")
 
+    def test_fit_honors_finer_step_for_compact_page(self, monkeypatch):
+        def fake(page_html, base_url=None, papers=generate.PAPER_SIZES):
+            root = 16.0
+            match = re.search(r"font-size: ([\d.]+)px", page_html)
+            if match:
+                root = float(match.group(1))
+            pages = 1 if root <= 13.75 else 2
+            return {size: pages for size in papers}
+
+        monkeypatch.setattr(generate, "render_page_counts", fake)
+        fitted, root = generate.fit_print_root(
+            self.PAGE,
+            label="menu/compact.html",
+            max_pages=generate.COMPACT_PAGE_BUDGET,
+            step=generate.COMPACT_PRINT_ROOT_STEP,
+        )
+        assert root == 13.75
+        assert "font-size: 13.75px" in fitted
+
     def test_injection_only_affects_print(self):
         fitted = generate.inject_print_root(self.PAGE, 13.5)
         assert "@media print" in fitted
