@@ -154,6 +154,10 @@
 
   .item { min-width: 0; break-inside: avoid; }
 
+  @media screen {
+    .item + .item { margin-top: 1.4rem; }
+  }
+
   .item-line {
     display: flex;
     align-items: baseline;
