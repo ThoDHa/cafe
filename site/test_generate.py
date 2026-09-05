@@ -469,10 +469,22 @@ class TestRender:
 
 
 class TestCompactRender:
-    def test_compact_omits_descriptions(self):
+    def test_compact_shows_item_descriptions(self):
         menu = generate.parse_menu(RECIPES_CAFE.read_text())
         page = generate.render_compact_page(menu)
-        assert 'class="item-desc"' not in page
+        assert 'class="item-desc"' in page
+        assert page.count('class="item-desc"') == sum(
+            1 for s in menu.sections for i in s.items if i.description
+        )
+
+    def test_compact_shows_black_coffee_description(self):
+        menu = generate.parse_menu(RECIPES_CAFE.read_text())
+        page = generate.render_compact_page(menu)
+        black_coffee = next(
+            i for i in menu.by_id("ca-phe").items if i.name_en == "Black Coffee"
+        )
+        assert black_coffee.description is not None
+        assert black_coffee.description in page
 
     def test_compact_keeps_names_pills_and_blurbs(self):
         menu = generate.parse_menu(RECIPES_CAFE.read_text())

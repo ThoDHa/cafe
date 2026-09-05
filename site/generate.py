@@ -150,7 +150,7 @@ def render_pills(temperatures: list[str]) -> str:
     return f'<span class="tags">{"".join(pills)}</span>'
 
 
-def render_item(item: Item, show_pills: bool, compact: bool = False) -> str:
+def render_item(item: Item, show_pills: bool) -> str:
     lead = item.name_vi or item.name_en
     line = f'<span class="item-name">{html.escape(lead)}</span>'
     if show_pills:
@@ -158,16 +158,14 @@ def render_item(item: Item, show_pills: bool, compact: bool = False) -> str:
     parts = [f'<div class="item">', f'  <div class="item-line">{line}</div>']
     if item.name_vi and item.name_en and item.name_en.lower() != item.name_vi.lower():
         parts.append(f'  <p class="item-vi">{html.escape(item.name_en)}</p>')
-    if not compact and item.description:
+    if item.description:
         parts.append(f'  <p class="item-desc">{html.escape(item.description)}</p>')
     parts.append("</div>")
     return "\n".join(parts)
 
 
-def render_section(section: Section, compact: bool = False) -> str:
-    items = "\n".join(
-        render_item(item, section.show_pills, compact) for item in section.items
-    )
+def render_section(section: Section) -> str:
+    items = "\n".join(render_item(item, section.show_pills) for item in section.items)
     parts = [
         "  <section>",
         '    <div class="section-head">',
@@ -196,9 +194,7 @@ def render_menu_page(menu: Menu) -> str:
 
 def render_compact_page(menu: Menu) -> str:
     template = (TEMPLATES_DIR / "compact.html").read_text()
-    sections_html = "\n".join(
-        render_section(section, compact=True) for section in menu.sections
-    )
+    sections_html = "\n".join(render_section(section) for section in menu.sections)
     return template.replace("<!--SECTIONS-->", sections_html)
 
 
