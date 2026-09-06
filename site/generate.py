@@ -113,9 +113,14 @@ PRINT_SCALER_CONFIGS = {
 SHARED_PRINT_RULES = {
     "page": "  @page { margin: 0.6cm; margin-bottom: 1.2cm; }",
     "base": "    html, body { background: var(--sua); padding: 0; }",
+    # overflow: hidden keeps .section-head monolithic for print fragmentation
+    # (css-break): Blink otherwise emits a pushed head's h2 text run in the
+    # previous fragmentainer when its glyphs' ink crosses the page edge, which
+    # prints tall Vietnamese diacritic ink into the A4 bottom margin band.
+    # Re-verify the A4 print before removing.
     "keep": (
         "    section, .item { break-inside: avoid; }\n"
-        "    .section-head { break-after: avoid; }"
+        "    .section-head { overflow: hidden; break-after: avoid; }"
     ),
     "color": (
         "    .seal, .tag {\n"

@@ -1621,6 +1621,18 @@ class TestSharedPrintCss:
             for key, css in generate.SHARED_PRINT_RULES.items():
                 assert css in page, f"{name}: missing shared print rule {key!r}"
 
+    def test_every_built_page_keeps_section_head_monolithic_in_print(self, tmp_path):
+        out = self._build(tmp_path)
+        for name in PUBLISHED_PAGES:
+            page = (out / name).read_text()
+            print_css = self._print_css(page, name)
+            assert ".section-head { overflow: hidden; break-after: avoid; }" in print_css, (
+                f"{name}: .section-head is not monolithic in print; without "
+                "overflow: hidden Blink paints a pushed head's h2 glyphs as "
+                "ghost ink past the A4 page-1 content edge into the bottom "
+                "margin band"
+            )
+
     def test_no_built_page_declares_fixed_position_print_css(self, tmp_path):
         out = self._build(tmp_path)
         for name in PUBLISHED_PAGES:
