@@ -1565,11 +1565,11 @@ class TestPrintScaler:
             assert config["budget"] == 2, name
         assert read_scaler_config((out / "menu.html").read_text())[
             "pageMarginsMm"
-        ] == [6, 17]
+        ] == [6, 12]
         for name in ("kitchen.html", "bar.html"):
             assert read_scaler_config((out / name).read_text())[
                 "pageMarginsMm"
-            ] == [12.7, 12.7], name
+            ] == [6, 12], name
 
     def test_scaler_asset_is_published_into_assets(self, tmp_path):
         out = self._build(tmp_path)

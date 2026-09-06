@@ -90,16 +90,16 @@ def _scaler_config(budget: int, page_margins_mm: list[float]) -> dict:
 
 # Print-time scaler configuration per published page: the page budget and
 # root cap mirrored from the build fit, plus the @page margins (top, bottom)
-# in mm each page declares for itself. kitchen/bar declare no @page rule, so
-# visitors' browsers apply their own default margins; 12.7mm (0.5in) is the
-# Firefox/Safari default and larger than Chrome's 10.2mm, which keeps the
-# scaler's page model conservative for those copies. Letter is the binding
-# paper for every page; A4 is taller and keeps its geometric remainder.
+# in mm each page declares for itself. All four pages share the same
+# template @page rule (0.6cm sides and top, 1.2cm bottom = 6/12mm), so the
+# browser-side fit models the declared band for every copy. Letter is the
+# binding paper for every page; A4 is taller and keeps its geometric
+# remainder.
 PRINT_SCALER_CONFIGS = {
-    "menu.html": _scaler_config(PRINT_PAGE_BUDGET, [6, 17]),
+    "menu.html": _scaler_config(PRINT_PAGE_BUDGET, [6, 12]),
     "menu/compact.html": _scaler_config(COMPACT_PAGE_BUDGET, [6, 12]),
-    "kitchen.html": _scaler_config(PRINT_PAGE_BUDGET, [12.7, 12.7]),
-    "bar.html": _scaler_config(BAR_PAGE_BUDGET, [12.7, 12.7]),
+    "kitchen.html": _scaler_config(PRINT_PAGE_BUDGET, [6, 12]),
+    "bar.html": _scaler_config(BAR_PAGE_BUDGET, [6, 12]),
 }
 
 
