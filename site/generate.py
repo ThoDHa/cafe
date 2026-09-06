@@ -390,7 +390,7 @@ def fit_print_root(
     max_pages: int = PRINT_PAGE_BUDGET,
     step: float = PRINT_ROOT_STEP,
 ) -> tuple[str, float | None]:
-    if step <= 0:
+    if not (step > 0):
         raise ValueError(f"fit_print_root needs a positive step; got {step}")
     marker = f'id="{PRINT_FIT_STYLE_ID}"'
     had_marker = marker in page_html

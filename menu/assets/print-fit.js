@@ -8,8 +8,9 @@
  * Letter page area, then searches for the largest root that keeps the page
  * budget, modelled as a greedy pack of the top-level blocks into pages.
  * A block's effective height folds in its computed vertical margins;
- * summed rather than collapsed, this can only overestimate the ink, which
- * is the safe direction for a budget oracle.
+ * summed rather than collapsed, this can only overestimate the ink,
+ * which is the safe direction for a budget oracle, and negative
+ * margins refuse the measurement outright.
  * Scaling is uniform root-only, so the type ramp, palette, and chrome are
  * untouched. Letter is the binding paper; A4 is taller and keeps its
  * geometric remainder. On any doubt the script does nothing and the
@@ -252,11 +253,16 @@
         var marginTop = parseFloat(style.marginTop);
         var marginBottom = parseFloat(style.marginBottom);
         if (!isFinite(marginTop) || !isFinite(marginBottom)) return null;
+        if (marginTop < 0 || marginBottom < 0) return null;
         // Vertical margins fold into the block: the card's padding keeps
         // the first margin-top and last margin-bottom live at the page
         // boundaries, and summing adjacent sibling margins instead of
         // collapsing them to the max can only overestimate, which is the
-        // safe side for a budget oracle.
+        // safe side for a budget oracle. That overcount relies on margins
+        // being non-negative, which the guard above enforces: a negative
+        // margin would make the sum undercount and could admit an
+        // overflowing root, so the measurement degrades to the
+        // build-injected fit instead.
         var effective = h + marginTop + marginBottom;
         blocks.push({ h: effective, breakBefore: isForcedBreak(style) });
         total += effective;

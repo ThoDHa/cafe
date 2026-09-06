@@ -1446,12 +1446,13 @@ class TestPrintFit:
         assert "font-size: 13.75px" in fitted
 
     def test_fit_rejects_non_positive_step(self):
-        try:
-            generate.fit_print_root(self.PAGE, label="x", step=0)
-        except ValueError as exc:
-            assert "step" in str(exc)
-        else:
-            raise AssertionError("expected ValueError")
+        for step in (0, -1, float("nan")):
+            try:
+                generate.fit_print_root(self.PAGE, label="x", step=step)
+            except ValueError as exc:
+                assert "step" in str(exc)
+            else:
+                raise AssertionError(f"expected ValueError for step {step!r}")
 
     def test_injection_only_affects_print(self):
         fitted = generate.inject_print_root(self.PAGE, 13.5)
