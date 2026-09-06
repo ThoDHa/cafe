@@ -1619,7 +1619,12 @@ class TestSharedPrintCss:
         for name in PUBLISHED_PAGES:
             page = (out / name).read_text()
             for key, css in generate.SHARED_PRINT_RULES.items():
-                assert css in page, f"{name}: missing shared print rule {key!r}"
+                count = page.count(css)
+                assert count == 1, (
+                    f"{name}: shared print rule {key!r} appears {count} times; "
+                    "each shared rule must appear exactly once per page, or a "
+                    "duplicated copy doubles the rule's effect"
+                )
 
     def test_every_built_page_keeps_section_head_monolithic_in_print(self, tmp_path):
         out = self._build(tmp_path)
@@ -1645,13 +1650,13 @@ class TestSharedPrintCss:
 
     def test_every_built_page_declares_the_same_page_rule(self, tmp_path):
         out = self._build(tmp_path)
-        by_rule: dict[str, list[str]] = {}
+        by_rules: dict[tuple[str, ...], list[str]] = {}
         for name in PUBLISHED_PAGES:
             page = (out / name).read_text()
-            match = re.search(r"@page \{[^}]*\}", page)
-            assert match, f"{name}: declares no @page rule"
-            by_rule.setdefault(match.group(0), []).append(name)
-        assert len(by_rule) == 1, f"pages declare divergent @page rules: {by_rule}"
+            rules = re.findall(r"@page \{[^}]*\}", page)
+            assert rules, f"{name}: declares no @page rule"
+            by_rules.setdefault(tuple(rules), []).append(name)
+        assert len(by_rules) == 1, f"pages declare divergent @page rules: {by_rules}"
 
     def test_inject_shared_print_css_substitutes_every_defined_rule(self):
         template = "\n".join(
@@ -1674,6 +1679,18 @@ class TestSharedPrintCss:
         else:
             raise AssertionError("expected RuntimeError for an unresolved marker")
 
+    def test_unresolved_shared_print_marker_with_asterisk_in_key_fails_loudly(self):
+        template = "<style>\n  /*SHARED_PRINT:head*er*/\n</style>"
+        try:
+            generate.inject_shared_print_css(template, template_name="menu.html")
+        except RuntimeError as exc:
+            assert "head*er" in str(exc)
+            assert "menu.html" in str(exc)
+        else:
+            raise AssertionError(
+                "expected RuntimeError for a marker whose key contains an asterisk"
+            )
+
 
 NODE_SCENARIOS = """
 const assert = require("assert");
@@ -1683,8 +1700,8 @@ const pxPerMm = solver.MM_TO_PX;
 const compact = solver.geometry({ paper: "letter", pageMarginsMm: [6, 12] });
 assert.ok(Math.abs(compact.capacity - (279.4 - 18) * pxPerMm) < 1e-6);
 assert.ok(Math.abs(compact.areaWidth - (215.9 - 12) * pxPerMm) < 1e-6);
-const kitchenBar = solver.geometry({ paper: "letter", pageMarginsMm: [12.7, 12.7] });
-assert.ok(Math.abs(kitchenBar.capacity - (279.4 - 25.4) * pxPerMm) < 1e-6);
+const legacyBrowserDefaultMargins = solver.geometry({ paper: "letter", pageMarginsMm: [12.7, 12.7] });
+assert.ok(Math.abs(legacyBrowserDefaultMargins.capacity - (279.4 - 25.4) * pxPerMm) < 1e-6);
 assert.equal(solver.geometry({ paper: "a4", pageMarginsMm: [6, 12] }), null);
 assert.equal(solver.geometry({ paper: "letter", pageMarginsMm: [6] }), null);
 
