@@ -1595,6 +1595,74 @@ class TestPrintScaler:
             raise AssertionError("expected the build to fail without the scaler asset")
 
 
+class TestSharedPrintCss:
+    """Needles pinning the shared print CSS shape injected by read_template.
+
+    These guard the SITE-9 invariants directly: the shared rules verbatim on
+    every built page, no fixed-position print CSS, and one common @page rule.
+    A failure here names the broken invariant, instead of surfacing late as
+    a print-budget overflow.
+    """
+
+    def _build(self, tmp_path):
+        out = tmp_path / "public"
+        generate.build_site(recipes_path=RECIPES_CAFE, out_dir=out, fit_pages=False)
+        return out
+
+    def _print_css(self, page_html: str, name: str) -> str:
+        marker = "@media print {"
+        assert marker in page_html, f"{name}: carries no @media print block"
+        return page_html.split(marker, 1)[1].split("</style>", 1)[0]
+
+    def test_every_built_page_carries_each_shared_print_rule(self, tmp_path):
+        out = self._build(tmp_path)
+        for name in PUBLISHED_PAGES:
+            page = (out / name).read_text()
+            for key, css in generate.SHARED_PRINT_RULES.items():
+                assert css in page, f"{name}: missing shared print rule {key!r}"
+
+    def test_no_built_page_declares_fixed_position_print_css(self, tmp_path):
+        out = self._build(tmp_path)
+        for name in PUBLISHED_PAGES:
+            page = (out / name).read_text()
+            print_css = self._print_css(page, name)
+            assert "position: fixed" not in print_css, (
+                f"{name}: print CSS contains position: fixed; printed headers "
+                "and footers must stay in the page flow"
+            )
+
+    def test_every_built_page_declares_the_same_page_rule(self, tmp_path):
+        out = self._build(tmp_path)
+        by_rule: dict[str, list[str]] = {}
+        for name in PUBLISHED_PAGES:
+            page = (out / name).read_text()
+            match = re.search(r"@page \{[^}]*\}", page)
+            assert match, f"{name}: declares no @page rule"
+            by_rule.setdefault(match.group(0), []).append(name)
+        assert len(by_rule) == 1, f"pages declare divergent @page rules: {by_rule}"
+
+    def test_inject_shared_print_css_substitutes_every_defined_rule(self):
+        template = "\n".join(
+            f"/*SHARED_PRINT:{key}*/" for key in generate.SHARED_PRINT_RULES
+        )
+        injected = generate.inject_shared_print_css(
+            template, template_name="unit.html"
+        )
+        for key, css in generate.SHARED_PRINT_RULES.items():
+            assert css in injected, f"shared print rule {key!r} not substituted"
+        assert "SHARED_PRINT:" not in injected
+
+    def test_unresolved_shared_print_marker_fails_loudly(self):
+        template = "<style>\n  /*SHARED_PRINT:headder*/\n</style>"
+        try:
+            generate.inject_shared_print_css(template, template_name="menu.html")
+        except RuntimeError as exc:
+            assert "headder" in str(exc)
+            assert "menu.html" in str(exc)
+        else:
+            raise AssertionError("expected RuntimeError for an unresolved marker")
+
+
 NODE_SCENARIOS = """
 const assert = require("assert");
 const solver = require(process.argv[1]);
