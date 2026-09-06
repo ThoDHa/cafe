@@ -132,7 +132,6 @@ SHARED_PRINT_RULES = {
     ),
     "footer": "    footer { margin-top: 1rem; padding-top: 0.5rem; }",
 }
-SHARED_PRINT_MARKER_RE = re.compile(r"/\*SHARED_PRINT:[^*]*\*/")
 
 
 class PrintFitError(Exception):
@@ -287,11 +286,13 @@ def inject_shared_print_css(page_html: str, template_name: str) -> str:
 
     for key, css in SHARED_PRINT_RULES.items():
         page_html = page_html.replace(f"/*SHARED_PRINT:{key}*/", css)
-    leftover = SHARED_PRINT_MARKER_RE.search(page_html)
-    if leftover:
+    start = page_html.find("/*SHARED_PRINT")
+    if start != -1:
+        end = page_html.find("*/", start)
+        leftover = page_html[start:] if end == -1 else page_html[start : end + 2]
         raise RuntimeError(
             f"{template_name}: unresolved shared print CSS marker "
-            f"{leftover.group(0)!r}; markers must name a SHARED_PRINT_RULES entry"
+            f"{leftover!r}; markers must name a SHARED_PRINT_RULES entry"
         )
     return page_html
 
