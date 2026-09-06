@@ -261,26 +261,18 @@
 
   /* ---------- print ---------- */
 
-  @page { margin: 0.6cm; margin-bottom: 1.2cm; }
+/*SHARED_PRINT:page*/
 
   @media print {
-    html, body { background: var(--sua); padding: 0; }
+/*SHARED_PRINT:base*/
     .card { max-width: none; border: none; box-shadow: none; padding: 0.4cm; }
-    section, .item { break-inside: avoid; }
-    .section-head { break-after: avoid; }
+/*SHARED_PRINT:keep*/
     .drip { display: none; }
-    .seal, .tag {
-      print-color-adjust: exact;
-      -webkit-print-color-adjust: exact;
-    }
+/*SHARED_PRINT:color*/
     footer a { border-bottom: none; }
     footer nav { display: none; }
     .own-page { break-before: page; }
-    header { padding: 0.8rem 1rem 1rem; }
-    h1 { font-size: 1.9rem; }
-    .seal { width: 2.2rem; height: 2.2rem; margin-top: 0.5rem; }
-    .eyebrow { margin-bottom: 0.4rem; }
-    .tagline { margin-top: 0.5rem; }
+/*SHARED_PRINT:header*/
     section { margin-top: 0.3rem; }
     h2 { font-size: 1.1rem; }
     .section-head { padding-bottom: 0.2rem; margin-bottom: 0.15rem; }
@@ -291,7 +283,7 @@
     .item-vi { margin-top: 0.03rem; }
     .section-note { margin: 0.2rem 0 0.35rem; font-size: 0.75rem; }
     body { line-height: 1.25; }
-    footer { margin-top: 1rem; padding-top: 0.5rem; }
+/*SHARED_PRINT:footer*/
   }
 </style>
 </head>

@@ -102,6 +102,38 @@ PRINT_SCALER_CONFIGS = {
     "bar.html": _scaler_config(BAR_PAGE_BUDGET, [6, 12]),
 }
 
+# The one copy of the print rules shared by every built page, defined
+# empirically as the rules byte-identical across all four templates after
+# 8520df6. Templates carry a /*SHARED_PRINT:<key>*/ marker exactly where
+# each entry's rules stood, and injection substitutes the entry verbatim
+# (indentation included), so the built pages stay byte-identical to the
+# pre-injection build. Rules any page treats differently (`.card` padding,
+# `.drip`/`footer nav`/`footer a`/`.own-page`, the per-page type scales)
+# remain in the templates.
+SHARED_PRINT_RULES = {
+    "page": "  @page { margin: 0.6cm; margin-bottom: 1.2cm; }",
+    "base": "    html, body { background: var(--sua); padding: 0; }",
+    "keep": (
+        "    section, .item { break-inside: avoid; }\n"
+        "    .section-head { break-after: avoid; }"
+    ),
+    "color": (
+        "    .seal, .tag {\n"
+        "      print-color-adjust: exact;\n"
+        "      -webkit-print-color-adjust: exact;\n"
+        "    }"
+    ),
+    "header": (
+        "    header { padding: 0.8rem 1rem 1rem; }\n"
+        "    h1 { font-size: 1.9rem; }\n"
+        "    .seal { width: 2.2rem; height: 2.2rem; margin-top: 0.5rem; }\n"
+        "    .eyebrow { margin-bottom: 0.4rem; }\n"
+        "    .tagline { margin-top: 0.5rem; }"
+    ),
+    "footer": "    footer { margin-top: 1rem; padding-top: 0.5rem; }",
+}
+SHARED_PRINT_MARKER_RE = re.compile(r"/\*SHARED_PRINT:[^*]*\*/")
+
 
 class PrintFitError(Exception):
     """Raised when a page cannot fit the print page budget at or above the floor size."""
@@ -245,14 +277,41 @@ def render_section(section: Section, item_renderer=None) -> str:
     return "\n".join(parts)
 
 
+def inject_shared_print_css(page_html: str, template_name: str) -> str:
+    """Substitute the template's shared-print markers with the shared rules.
+
+    A marker that names no SHARED_PRINT_RULES entry would silently drop
+    shared print CSS from the built page (the leftover text is a legal CSS
+    comment), so an unresolved marker fails the build instead.
+    """
+
+    for key, css in SHARED_PRINT_RULES.items():
+        page_html = page_html.replace(f"/*SHARED_PRINT:{key}*/", css)
+    leftover = SHARED_PRINT_MARKER_RE.search(page_html)
+    if leftover:
+        raise RuntimeError(
+            f"{template_name}: unresolved shared print CSS marker "
+            f"{leftover.group(0)!r}; markers must name a SHARED_PRINT_RULES entry"
+        )
+    return page_html
+
+
+def read_template(name: str) -> str:
+    """Read a page template with the shared print CSS injected."""
+
+    return inject_shared_print_css(
+        (TEMPLATES_DIR / name).read_text(), template_name=name
+    )
+
+
 def render_menu_page(menu: Menu) -> str:
-    template = (TEMPLATES_DIR / "menu.html").read_text()
+    template = read_template("menu.html")
     sections_html = "\n".join(render_section(section) for section in menu.sections)
     return template.replace("<!--SECTIONS-->", sections_html)
 
 
 def render_compact_page(menu: Menu) -> str:
-    template = (TEMPLATES_DIR / "compact.html").read_text()
+    template = read_template("compact.html")
     sections_html = "\n".join(render_section(section) for section in menu.sections)
     return template.replace("<!--SECTIONS-->", sections_html)
 
@@ -292,7 +351,7 @@ def render_bar_page(items: list[Item]) -> str:
         parts.append("      </div>")
         return "\n".join(parts)
 
-    template = (TEMPLATES_DIR / "bar.html").read_text()
+    template = read_template("bar.html")
     items_html = "\n".join(render_bar_item(item) for item in items)
     return template.replace("<!--ITEMS-->", items_html)
 
@@ -321,7 +380,7 @@ def render_kitchen_page(kitchen: KitchenMenu) -> str:
         parts.append("      </div>")
         return "\n".join(parts)
 
-    template = (TEMPLATES_DIR / "kitchen.html").read_text()
+    template = read_template("kitchen.html")
     drip = (
         "\n\n"
         '  <div class="drip" aria-hidden="true">'
