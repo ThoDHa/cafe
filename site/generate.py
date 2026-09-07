@@ -18,11 +18,15 @@ Usage: uv run --with weasyprint python site/generate.py [--recipes PATH] [--out 
 The build also enforces print budgets: weasyprint renders each page and the
 print root font size steps down until the drinks and kitchen pages fit two
 A4 and Letter pages and the compact and bar pages fit one, failing the build
-if the 11px floor cannot satisfy the budget. Pass --no-fit-pages to skip this
-pass (used by fast artifact tests). The published pages also reference the
-shared beforeprint scaler (menu/assets/print-fit.js), which refines the
-fitted root for the visitor's browser at print time; without JavaScript the
-build-injected fit applies unchanged.
+if the 11px floor cannot satisfy the budget. The same pass renders each menu
+to a print-ready PDF next to its HTML (menu.pdf, menu/compact.pdf, bar.pdf,
+kitchen.pdf): the PDF carries the brand line in an @page bottom margin box
+on every page, which browsers cannot do in their print preview, so the PDF
+is the print path. Pass --no-fit-pages to skip this pass (used by fast
+artifact tests). The published pages also reference the shared beforeprint
+scaler (menu/assets/print-fit.js), which refines the fitted root for the
+visitor's browser at print time; without JavaScript the build-injected fit
+applies unchanged.
 """
 
 from __future__ import annotations
@@ -66,6 +70,15 @@ COMPACT_PAGE_BUDGET = 1
 # Bar prints as one page by user directive (2026-09-05 review); it fits the
 # default 16px root already, so this budget only guards against drift.
 BAR_PAGE_BUDGET = 1
+# The print PDF of each page answers to the same page budget as the HTML
+# print: the fit pass guarantees it at the fitted root, and the render gate
+# below fails the build loudly if the artifact ever drifts over budget.
+PDF_PAGE_BUDGETS = {
+    "menu.pdf": PRINT_PAGE_BUDGET,
+    "menu/compact.pdf": COMPACT_PAGE_BUDGET,
+    "bar.pdf": BAR_PAGE_BUDGET,
+    "kitchen.pdf": PRINT_PAGE_BUDGET,
+}
 PRINT_ROOT_DEFAULT = 16.0
 PRINT_ROOT_FLOOR = 11.0
 PRINT_ROOT_STEP = 1.0
@@ -77,6 +90,23 @@ PAPER_SIZES = ("a4", "letter")
 PRINT_FIT_SEARCH_SIZE = "letter"
 PRINT_FIT_STYLE_ID = "print-fit"
 PRINT_SCALER_ASSET_NAME = "print-fit.js"
+# The print PDF is rendered on A4 sheets: the standing margin rule for the
+# published menus is measured on A4, and weasyprint pins the page size so
+# the artifact does not depend on a viewer default.
+PDF_PAPER = "a4"
+# The printed brand line lives in the page's own bottom margin band; the
+# in-flow footer is hidden so the last page does not carry the line twice.
+PDF_ONLY_STYLESHEET = """
+footer { display: none; }
+@page {
+  @bottom-center {
+    content: "CAFE ÔNG THỌ · nhà làm · made in house";
+    font-family: 'Be Vietnam Pro', 'Segoe UI', system-ui, sans-serif;
+    font-size: 0.88rem;
+    color: #56513F;
+  }
+}
+"""
 
 
 def _scaler_config(budget: int, page_margins_mm: list[float]) -> dict:
@@ -136,6 +166,9 @@ SHARED_PRINT_RULES = {
         "    .tagline { margin-top: 0.5rem; }"
     ),
     "footer": "    footer { margin-top: 1rem; padding-top: 0.5rem; }",
+    # The Print PDF link is a screen-only affordance: the PDF is the print
+    # path, so printing the HTML page must never show the link.
+    "pdf-link": "    .pdf-link { display: none; }",
 }
 
 
@@ -430,9 +463,7 @@ def inject_print_scaler(page_html: str, page_name: str) -> str:
     return page_html.replace("</body>", f"  {tag}\n</body>", 1)
 
 
-def render_page_counts(
-    page_html: str, base_url: Path | None = None, papers: tuple[str, ...] = PAPER_SIZES
-) -> dict[str, int]:
+def _load_weasyprint() -> tuple[type, type]:
     try:
         from weasyprint import CSS, HTML
     except ImportError as exc:
@@ -440,6 +471,13 @@ def render_page_counts(
             "print fitting requires weasyprint; run the generator via "
             "'uv run --with weasyprint python site/generate.py'"
         ) from exc
+    return CSS, HTML
+
+
+def render_page_counts(
+    page_html: str, base_url: Path | None = None, papers: tuple[str, ...] = PAPER_SIZES
+) -> dict[str, int]:
+    CSS, HTML = _load_weasyprint()
     counts: dict[str, int] = {}
     for size in papers:
         document = HTML(
@@ -447,6 +485,43 @@ def render_page_counts(
         ).render(stylesheets=[CSS(string=f"@page {{ size: {size}; }}")])
         counts[size] = len(document.pages)
     return counts
+
+
+def write_print_pdf(
+    page_html: str, out_path: Path, label: str, max_pages: int
+) -> int:
+    """Render a page's print-ready PDF artifact and enforce its page budget.
+
+    The page renders with the PDF-only stylesheet applied on top of its own
+    print CSS: the in-flow footer is hidden and the brand line is painted
+    into the @page bottom margin band of every sheet. The rendered page
+    count is checked against ``max_pages`` (the page's print budget) before
+    anything is written, so a budget violation fails the build loudly and
+    leaves no artifact behind. Returns the rendered page count.
+    """
+
+    CSS, HTML = _load_weasyprint()
+    document = HTML(
+        string=page_html, base_url=str(TEMPLATES_DIR)
+    ).render(
+        stylesheets=[
+            CSS(string=f"@page {{ size: {PDF_PAPER}; }}"),
+            CSS(string=PDF_ONLY_STYLESHEET),
+        ]
+    )
+    count = len(document.pages)
+    if count > max_pages:
+        raise PrintFitError(
+            f"{label} renders a {count}-page print PDF on {PDF_PAPER}, over "
+            f"its {max_pages}-page budget; remove items or raise the page budget"
+        )
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    document.write_pdf(str(out_path))
+    print(
+        f"print pdf: {label} on {PDF_PAPER} sheets: {count} pages "
+        f"(budget {max_pages})"
+    )
+    return count
 
 
 def fit_print_root(
@@ -562,6 +637,24 @@ def build_site(
     for asset in MENU_SOURCE_DIR.joinpath("assets").iterdir():
         if asset.is_file() and asset.name != ".gitkeep":
             shutil.copyfile(asset, assets_out / asset.name)
+    if fit_pages:
+        # The PDF artifact renders from the final built HTML (fit-injected
+        # root and scaler tag included), so it paginates exactly like the
+        # published page does without JavaScript. --no-fit-pages skips it:
+        # without the fit pass the unfitted roots legitimately overflow the
+        # budgets and the gate would fail by design.
+        for pdf_name, page_html in (
+            ("menu.pdf", menu_page),
+            ("menu/compact.pdf", compact_page),
+            ("bar.pdf", bar_page),
+            ("kitchen.pdf", kitchen_page),
+        ):
+            write_print_pdf(
+                page_html,
+                out_dir / pdf_name,
+                label=pdf_name,
+                max_pages=PDF_PAGE_BUDGETS[pdf_name],
+            )
     for label, root in fitted:
         if root is None:
             print(f"print fit: {label} fits at the default 16px root")
@@ -581,7 +674,7 @@ def main() -> None:
     parser.add_argument(
         "--no-fit-pages",
         action="store_true",
-        help="skip the print-budget fitting pass",
+        help="skip the print-budget fitting pass and the print PDF artifacts",
     )
     args = parser.parse_args()
     menu = build_site(args.recipes, args.out, fit_pages=not args.no_fit_pages)

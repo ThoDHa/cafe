@@ -245,6 +245,21 @@
   footer a:hover { color: var(--seal); border-bottom-color: var(--seal); }
   footer a:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 3px; }
 
+  .pdf-link {
+    display: inline-block;
+    margin-top: 0.9rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--cobalt);
+    text-decoration: none;
+    border-bottom: 1px dotted var(--cobalt-soft);
+  }
+
+  .pdf-link:hover { color: var(--seal); border-bottom-color: var(--seal); }
+  .pdf-link:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 3px; }
+
   @media (prefers-reduced-motion: reduce) {
     * { transition: none !important; }
   }
@@ -260,6 +275,7 @@
     .drip { display: none; }
 /*SHARED_PRINT:color*/
     footer a { border-bottom: none; }
+/*SHARED_PRINT:pdf-link*/
     .own-page { break-before: page; }
 /*SHARED_PRINT:header*/
     section { margin-top: 0.8rem; }
@@ -296,6 +312,7 @@
   <footer>
     <p>nhà làm &middot; made in house</p>
     <p><a href="menu.html">The Drink Menu</a> &middot; <a href="kitchen.html">The Kitchen Menu</a></p>
+    <a class="pdf-link" href="bar.pdf">Print PDF</a>
   </footer>
 
 </div>

@@ -1475,6 +1475,108 @@ class TestPageBudget:
         for size, count in counts.items():
             assert count == 1, ("menu/compact.html", size, count)
 
+    def test_fit_build_writes_every_print_pdf_artifact(self, tmp_path):
+        out = tmp_path / "public"
+        generate.build_site(recipes_path=RECIPES_CAFE, out_dir=out)
+        for name in generate.PDF_PAGE_BUDGETS:
+            pdf = out / name
+            assert pdf.is_file(), f"missing print PDF {name}"
+            assert pdf.read_bytes().startswith(b"%PDF"), f"not a PDF: {name}"
+
+
+class TestPrintPdf:
+    PAGE = "<html><head><title>x</title></head><body><p>menu</p></body></html>"
+    # Flowing paragraphs fragment across pages; a fixed-height box only
+    # overflows its single page and clips, so it cannot trip the budget.
+    TALL_PAGE = (
+        "<html><head><title>x</title></head><body>"
+        + "<p>line of menu content</p>" * 400
+        + "</body></html>"
+    )
+
+    def test_write_print_pdf_renders_a_pdf_under_budget(self, tmp_path):
+        target = tmp_path / "menu.pdf"
+        count = generate.write_print_pdf(
+            self.PAGE, target, label="menu.pdf", max_pages=2
+        )
+        assert count == 1
+        assert target.is_file()
+        assert target.read_bytes().startswith(b"%PDF")
+
+    def test_write_print_pdf_fails_loudly_over_budget_without_artifact(self, tmp_path):
+        target = tmp_path / "menu.pdf"
+        try:
+            generate.write_print_pdf(
+                self.TALL_PAGE, target, label="menu.pdf", max_pages=1
+            )
+        except generate.PrintFitError as exc:
+            assert "menu.pdf" in str(exc)
+            assert "budget" in str(exc)
+        else:
+            raise AssertionError("expected PrintFitError over the page budget")
+        assert not target.exists(), "a budget violation must leave no artifact"
+
+    def test_pdf_page_budgets_mirror_the_print_budgets(self):
+        assert generate.PDF_PAGE_BUDGETS == {
+            "menu.pdf": generate.PRINT_PAGE_BUDGET,
+            "menu/compact.pdf": generate.COMPACT_PAGE_BUDGET,
+            "bar.pdf": generate.BAR_PAGE_BUDGET,
+            "kitchen.pdf": generate.PRINT_PAGE_BUDGET,
+        }
+
+    def test_pdf_only_stylesheet_hides_footer_and_carries_margin_box(self):
+        css = generate.PDF_ONLY_STYLESHEET
+        assert "footer { display: none; }" in css, (
+            "the in-flow footer must be hidden in the PDF or the last page "
+            "carries the brand line twice"
+        )
+        assert "@bottom-center" in css
+        assert "CAFE ÔNG THỌ · nhà làm · made in house" in css
+
+
+class TestPrintPdfLink:
+    """Needles pinning the screen-only Print PDF link on the published pages."""
+
+    def _build(self, tmp_path):
+        out = tmp_path / "public"
+        generate.build_site(recipes_path=RECIPES_CAFE, out_dir=out, fit_pages=False)
+        return out
+
+    def _print_css(self, page_html: str, name: str) -> str:
+        marker = "@media print {"
+        assert marker in page_html, f"{name}: carries no @media print block"
+        return page_html.split(marker, 1)[1].split("</style>", 1)[0]
+
+    def test_every_published_page_links_its_print_pdf(self, tmp_path):
+        out = self._build(tmp_path)
+        expected = {
+            "index.html": "menu.pdf",
+            "menu.html": "menu.pdf",
+            "menu/compact.html": "compact.pdf",
+            "kitchen.html": "kitchen.pdf",
+            "bar.html": "bar.pdf",
+        }
+        for name, pdf in expected.items():
+            page = (out / name).read_text()
+            assert f'<a class="pdf-link" href="{pdf}">Print PDF</a>' in page, name
+
+    def test_print_pdf_link_is_hidden_from_the_browser_print_css(self, tmp_path):
+        out = self._build(tmp_path)
+        for name in PUBLISHED_PAGES:
+            page = (out / name).read_text()
+            print_css = self._print_css(page, name)
+            assert ".pdf-link { display: none; }" in print_css, (
+                f"{name}: the Print PDF link is not hidden in print; printing "
+                "the HTML page must never show the link"
+            )
+
+    def test_pdf_only_footer_stays_out_of_the_published_pages(self, tmp_path):
+        out = self._build(tmp_path)
+        for name in PUBLISHED_PAGES:
+            page = (out / name).read_text()
+            assert "@bottom-center" not in page, name
+            assert "footer { display: none" not in page, name
+
 
 class TestBuildSite:
     def _build(self, tmp_path):
@@ -1513,6 +1615,14 @@ class TestBuildSite:
                 p.name for p in asset_source.iterdir() if p.name != ".gitkeep"
             }
             assert copied == expected
+
+    def test_no_fit_pages_build_writes_no_print_pdfs(self, tmp_path):
+        out = self._build(tmp_path)
+        assert not list(out.rglob("*.pdf")), (
+            "--no-fit-pages must stay the fast artifact path: the print PDFs "
+            "belong to the fit pass, whose fitted roots are the only state "
+            "the PDF page-budget gate is meaningful at"
+        )
 
 
 PUBLISHED_PAGES = (
