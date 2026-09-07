@@ -270,7 +270,7 @@
 
   @media print {
 /*SHARED_PRINT:base*/
-    .card { max-width: none; border: none; box-shadow: none; padding: 0.5cm; }
+    .card { max-width: none; border: none; box-shadow: none; padding: 1.1cm 0.5cm; }
 /*SHARED_PRINT:keep*/
     .drip { display: none; }
 /*SHARED_PRINT:color*/
@@ -278,13 +278,22 @@
 /*SHARED_PRINT:pdf-link*/
     .own-page { break-before: page; }
 /*SHARED_PRINT:header*/
-    section { margin-top: 0.8rem; }
-    .items { column-gap: 1.6rem; margin-top: 0.8rem; }
-    .item + .item { margin-top: 0.7rem; }
+    /* The bar sheet spends its one-page slack as whitespace (user direction
+       2026-09-07): the head and section breathe while the 16px root stays. */
+    header { padding: 2.2rem 1rem 2.4rem; }
+    .seal { margin-top: 1.4rem; }
+    section { margin-top: 4rem; }
+    .section-head { padding-bottom: 0.8rem; margin-bottom: 1.6rem; }
+    .items { column-gap: 1.6rem; margin-top: 1.6rem; }
+    .item + .item { margin-top: 3.4rem; }
     .item-name { font-size: 0.98rem; }
     .item-desc, .item-vi { font-size: 0.78rem; }
+    .item-desc { margin-top: 1.3rem; }
     .section-note { margin: 0.35rem 0 0.7rem; font-size: 0.8rem; }
-    body { line-height: 1.45; }
+    /* The links-only footer paragraph tips browser prints onto a blank
+       second sheet; paper has no use for the links either. */
+    footer p + p { display: none; }
+    body { line-height: 1.7; }
 /*SHARED_PRINT:footer*/
   }
 </style>

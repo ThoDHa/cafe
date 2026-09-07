@@ -1324,6 +1324,15 @@ class TestBarRender:
         assert '<a href="menu.html">' in page
         assert '<a href="kitchen.html">' in page
 
+    def test_print_hides_footer_links_paragraph(self):
+        page = generate.render_bar_page(self._bar_items())
+        print_block = page.split("@media print {", 1)[1]
+        assert "footer p + p { display: none; }" in print_block, (
+            "the bar footer's second paragraph is only cross-page links; "
+            "printed sheets have no use for them and the line tips the "
+            "browser print onto a blank second sheet"
+        )
+
     def test_render_escapes_item_text(self):
         items = self._bar_items()
         items[0].description = "<script>alert(1)</script>"
@@ -1532,6 +1541,21 @@ class TestPrintPdf:
         )
         assert "@bottom-center" in css
         assert "CAFE ÔNG THỌ · nhà làm · made in house" in css
+
+    def test_pdf_only_stylesheet_paints_the_page_white(self):
+        css = generate.PDF_ONLY_STYLESHEET
+        assert "html, body { background: #fff" in css, (
+            "the PDFs print on white stock: the page background the HTML "
+            "print CSS paints cream must be neutralized to white"
+        )
+        assert ".card, header { background: #fff" in css, (
+            "the card and header plaque surfaces must be white in the PDF "
+            "or they survive as cream panels on the white sheet"
+        )
+        assert "header { box-shadow: inset" in css, (
+            "the header plaque's cream inset ring must be recolored or it "
+            "survives as a warm band on the white plaque"
+        )
 
 
 class TestPrintPdfLink:
