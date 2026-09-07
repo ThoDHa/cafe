@@ -98,6 +98,19 @@ PDF_PAPER = "a4"
 # in-flow footer is hidden so the last page does not carry the line twice.
 PDF_ONLY_STYLESHEET = """
 footer { display: none; }
+/* The PDFs print on white stock (user direction 2026-09-07): every
+   page-level surface the HTML print CSS paints cream is neutralized to
+   white here, so this sheet reaches the PDF artifacts only and the HTML
+   print preview keeps the cream design. The header rule also recolors the
+   plaque's cream inset ring, which would otherwise survive as a warm band
+   on the white plaque. Ink (text, seal, borders, pills, the margin-box
+   brand line) is left untouched. The !important flags are a weasyprint 69
+   requirement, not emphasis: it applies render()-passed author stylesheets
+   BEFORE the page's own <style> sheets, so equal-specificity declarations
+   from this sheet lose; important declarations win the cascade instead. */
+html, body { background: #fff !important; }
+.card, header { background: #fff !important; }
+header { box-shadow: inset 0 0 0 4px #fff, inset 0 0 0 5px #1F3564 !important; }
 @page {
   @bottom-center {
     content: "CAFE ÔNG THỌ · nhà làm · made in house";
