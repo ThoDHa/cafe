@@ -1237,7 +1237,7 @@ class TestRender:
     def test_render_places_pills_in_fixed_two_slot_order(self):
         menu = generate.parse_menu(RECIPES_CAFE.read_text())
         page = generate.render_menu_page(menu)
-        pill_items = sum(1 for s in menu.sections if s.show_pills for _ in s.items)
+        pill_items = sum(len(s.items) for s in menu.sections if s.show_pills)
         temperatures = {
             t: sum(
                 1
@@ -1938,7 +1938,9 @@ class TestSharedPrintCss:
             f"the unterminated marker context ran {len(bounded)} chars, over "
             f"the {limit}-char bound: one typo must not flood the build log"
         )
-        before_newline = "/*SHARED_PRINT:" + "y" * (limit // 2)
+        prefix = "/*SHARED_PRINT:"
+        filler = max(limit - len(prefix) - 1, 1)
+        before_newline = prefix + "y" * filler
         at_newline = context_of(f"<style>\n  {before_newline}\n  tail\n</style>")
         assert at_newline == before_newline, (
             "a newline inside the limit must end the context at the newline"
