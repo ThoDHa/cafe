@@ -34,6 +34,7 @@ from __future__ import annotations
 import argparse
 import html
 import json
+import math
 import re
 import shutil
 import sys
@@ -300,7 +301,21 @@ def render_item(item: Item, show_pills: bool) -> str:
     return "\n".join(parts)
 
 
-def render_section(section: Section, item_renderer=None) -> str:
+def items_open_tag(item_count: int, columns: int) -> str:
+    """Open the section's .items grid with its explicit row count.
+
+    The grid fills column-major (grid-auto-flow: column), which needs an
+    explicit row count: with R = ceil(items/columns) rows, items of equal
+    rank share one grid row, so partner columns line up item to item. The
+    style attribute is emitted per section because the count is data, not
+    design.
+    """
+
+    rows = math.ceil(item_count / columns)
+    return f'<div class="items" style="grid-template-rows: repeat({rows}, auto)">'
+
+
+def render_section(section: Section, item_renderer=None, columns: int = 2) -> str:
     if item_renderer is None:
 
         def item_renderer(item: Item) -> str:
@@ -318,7 +333,7 @@ def render_section(section: Section, item_renderer=None) -> str:
         parts.append(f'    <p class="section-note">{html.escape(section.note)}</p>')
     parts.extend(
         [
-            '    <div class="items">',
+            f"    {items_open_tag(len(section.items), columns)}",
             items,
             "    </div>",
             "  </section>",
@@ -364,7 +379,9 @@ def render_menu_page(menu: Menu) -> str:
 
 def render_compact_page(menu: Menu) -> str:
     template = read_template("compact.html")
-    sections_html = "\n".join(render_section(section) for section in menu.sections)
+    sections_html = "\n".join(
+        render_section(section, columns=3) for section in menu.sections
+    )
     return template.replace("<!--SECTIONS-->", sections_html)
 
 
@@ -405,6 +422,9 @@ def render_bar_page(items: list[Item]) -> str:
 
     template = read_template("bar.html")
     items_html = "\n".join(render_bar_item(item) for item in items)
+    template = template.replace(
+        '<div class="items">', items_open_tag(len(items), columns=2)
+    )
     return template.replace("<!--ITEMS-->", items_html)
 
 

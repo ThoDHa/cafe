@@ -140,23 +140,25 @@
     font-family: var(--names);
   }
 
+  /* Column-major fill needs an explicit row count (the generator emits it
+     inline per section), so items of equal rank share one grid row and the
+     columns line up drink to drink instead of flowing to ragged heights. */
   .items {
-    columns: 2;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    grid-auto-flow: column;
     column-gap: 2.5rem;
+    row-gap: 1.4rem;
     margin-top: 1.4rem;
   }
 
   @media (max-width: 640px) {
-    .items { columns: 1; }
+    .items { grid-template-columns: 1fr; grid-auto-flow: row; }
   }
 
   /* ---------- menu items ---------- */
 
   .item { min-width: 0; break-inside: avoid; }
-
-  @media screen {
-    .item + .item { margin-top: 1.4rem; }
-  }
 
   .item-line {
     display: flex;
@@ -302,7 +304,7 @@
     section { margin-top: 0.72rem; }
     h2 { font-size: 1.1rem; }
     .section-head { padding-bottom: 0.2rem; margin-bottom: 0.15rem; }
-    .items { column-gap: 1.4rem; margin-top: 0.3rem; }
+    .items { column-gap: 1.4rem; row-gap: 0; margin-top: 0.3rem; }
     .item-name { font-size: 0.92rem; }
     .item-desc, .item-vi { font-size: 0.72rem; }
     .item-desc { margin-top: 0.1rem; }
