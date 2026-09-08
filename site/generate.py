@@ -26,7 +26,12 @@ is the print path. Pass --no-fit-pages to skip this pass (used by fast
 artifact tests). The published pages also reference the shared beforeprint
 scaler (menu/assets/print-fit.js), which refines the fitted root for the
 visitor's browser at print time; without JavaScript the build-injected fit
-applies unchanged.
+applies unchanged. Each injected fit carries a per-page headroom margin
+(PRINT_HEADROOM_STEPS) below the largest root weasyprint fits, calibrated
+against Chrome for Testing 153 to absorb the measured
+weasyprint-versus-Chrome fragmentation drift near the page edge, and
+make verify-print-chrome re-verifies the shipped roots against the
+pinned Chrome shell with JavaScript off on both A4 and Letter.
 """
 
 from __future__ import annotations
@@ -87,6 +92,22 @@ PRINT_ROOT_STEP = 1.0
 # page edge; a finer step keeps a drift below the integer root from falling a
 # whole pixel and reopening a dead band at the bottom of the page.
 COMPACT_PRINT_ROOT_STEP = 0.25
+# Per-page headroom, in full steps of the page's own step size: the injected
+# root ships this many steps below the largest root weasyprint fits, so a
+# no-JavaScript browser print stays inside the budget the gate verified.
+# Calibrated against the pinned Chrome for Testing 153 shell by
+# make verify-print-chrome, whose measurement is the source of truth: Chrome's
+# print fragmentation drifts from weasyprint near the page edge by one
+# whole-px step on menu, bar, and kitchen (bar 16→15, kitchen 14→13) but by
+# two 0.25-steps on compact (13.75→13.25; one step there ships a 2-page
+# no-JS Letter print over compact's 1-page budget). Raise a page's entry if
+# the sensor ever measures a wider divergence there.
+PRINT_HEADROOM_STEPS = {
+    "menu.html": 1,
+    "menu/compact.html": 2,
+    "bar.html": 1,
+    "kitchen.html": 1,
+}
 PAPER_SIZES = ("a4", "letter")
 PRINT_FIT_SEARCH_SIZE = "letter"
 PRINT_FIT_STYLE_ID = "print-fit"
@@ -622,9 +643,31 @@ def fit_print_root(
     label: str,
     max_pages: int = PRINT_PAGE_BUDGET,
     step: float = PRINT_ROOT_STEP,
+    headroom_steps: int = 1,
 ) -> tuple[str, float | None]:
+    """Fit a page's print root under its page budget, with headroom margin.
+
+    Walks down from ``PRINT_ROOT_DEFAULT`` by ``step`` to the floor, accepts
+    the first root where the letter search fits and both papers verify, then
+    ships ``headroom_steps`` full steps of ``step`` below that root instead,
+    clamped at the floor, so the injected fit also holds in a no-JavaScript
+    browser whose fragmentation drifts from weasyprint near the page edge.
+    Per-page calibration lives in ``PRINT_HEADROOM_STEPS``, which
+    ``build_site`` feeds in here. The accepted root is re-verified on both
+    papers before returning; a pathological non-monotonic failure keeps
+    stepping down to the floor. When the margin cannot fit above the floor a
+    loud warning prints and the floor root ships unmarginned. Raises
+    ``ValueError`` for a headroom below one step and ``PrintFitError`` when
+    even the floor cannot satisfy the budget.
+    """
+
     if not (step > 0):
         raise ValueError(f"fit_print_root needs a positive step; got {step}")
+    if not (headroom_steps >= 1):
+        raise ValueError(
+            f"fit_print_root needs a headroom of at least 1 step; got "
+            f"{headroom_steps}"
+        )
     marker = f'id="{PRINT_FIT_STYLE_ID}"'
     had_marker = marker in page_html
     root = PRINT_ROOT_DEFAULT
@@ -639,9 +682,32 @@ def fit_print_root(
         if search_counts[PRINT_FIT_SEARCH_SIZE] <= max_pages:
             full_counts = render_page_counts(candidate)
             if all(count <= max_pages for count in full_counts.values()):
-                if not had_marker and root == PRINT_ROOT_DEFAULT:
-                    return page_html, None
-                return candidate, root
+                accepted = max(
+                    round(root - headroom_steps * step, 2),
+                    PRINT_ROOT_FLOOR,
+                )
+                if root - headroom_steps * step < PRINT_ROOT_FLOOR:
+                    print(
+                        f"print fit: WARNING {label} clamps at the "
+                        f"{PRINT_ROOT_FLOOR:g}px floor: the "
+                        f"{headroom_steps}-step headroom margin is "
+                        "exhausted; make verify-print-chrome must clear "
+                        "this root"
+                    )
+                while True:
+                    candidate = inject_print_root(page_html, accepted)
+                    margin_counts = render_page_counts(candidate)
+                    if all(
+                        count <= max_pages for count in margin_counts.values()
+                    ):
+                        return candidate, accepted
+                    if accepted <= PRINT_ROOT_FLOOR:
+                        raise PrintFitError(
+                            f"{label} needs more than {max_pages} printed pages even at the "
+                            f"{PRINT_ROOT_FLOOR:g}px floor (measured {margin_counts} on "
+                            f"{', '.join(PAPER_SIZES)}); remove items or raise the page budget"
+                        )
+                    accepted = round(accepted - step, 2)
         if root <= PRINT_ROOT_FLOOR:
             raise PrintFitError(
                 f"{label} needs more than {max_pages} printed pages even at the "
@@ -692,7 +758,11 @@ def build_site(
     fitted: list[tuple[str, float | None]] = []
     menu_page = render_menu_page(menu)
     if fit_pages:
-        menu_page, menu_root = fit_print_root(menu_page, label="menu.html")
+        menu_page, menu_root = fit_print_root(
+            menu_page,
+            label="menu.html",
+            headroom_steps=PRINT_HEADROOM_STEPS["menu.html"],
+        )
         fitted.append(("index.html", menu_root))
     menu_page = inject_print_scaler(menu_page, "menu.html")
     (out_dir / "index.html").write_text(menu_page)
@@ -704,6 +774,7 @@ def build_site(
             label="menu/compact.html",
             max_pages=COMPACT_PAGE_BUDGET,
             step=COMPACT_PRINT_ROOT_STEP,
+            headroom_steps=PRINT_HEADROOM_STEPS["menu/compact.html"],
         )
         fitted.append(("menu/compact.html", compact_root))
     compact_page = inject_print_scaler(compact_page, "menu/compact.html")
@@ -712,7 +783,10 @@ def build_site(
     bar_page = render_bar_page(bar_items)
     if fit_pages:
         bar_page, bar_root = fit_print_root(
-            bar_page, label="bar.html", max_pages=BAR_PAGE_BUDGET
+            bar_page,
+            label="bar.html",
+            max_pages=BAR_PAGE_BUDGET,
+            headroom_steps=PRINT_HEADROOM_STEPS["bar.html"],
         )
         fitted.append(("bar.html", bar_root))
     bar_page = inject_print_scaler(bar_page, "bar.html")
@@ -720,7 +794,10 @@ def build_site(
     kitchen_page = render_kitchen_page(kitchen_menu)
     if fit_pages:
         kitchen_page, kitchen_root = fit_print_root(
-            kitchen_page, label="kitchen.html", max_pages=PRINT_PAGE_BUDGET
+            kitchen_page,
+            label="kitchen.html",
+            max_pages=PRINT_PAGE_BUDGET,
+            headroom_steps=PRINT_HEADROOM_STEPS["kitchen.html"],
         )
         fitted.append(("kitchen.html", kitchen_root))
     kitchen_page = inject_print_scaler(kitchen_page, "kitchen.html")

@@ -29,9 +29,9 @@ jobs:
       - name: Run generator tests
         env:
           RECIPES_CAFE: recipes/cafe.md
-        run: uv run --with pytest --with weasyprint pytest site/ -q
+        run: uv run --with pytest --with weasyprint==70.0 pytest site/ -q
       - name: Generate menus site
-        run: uv run --with weasyprint python site/generate.py --recipes recipes/cafe.md
+        run: uv run --with weasyprint==70.0 python site/generate.py --recipes recipes/cafe.md
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site/public

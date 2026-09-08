@@ -1471,25 +1471,57 @@ class TestPrintFit:
 
         monkeypatch.setattr(generate, "render_page_counts", fake)
 
-    def test_fit_returns_largest_size_that_fits(self, monkeypatch):
+    def test_fit_ships_the_given_headroom_steps_below_the_first_fit(self, monkeypatch):
         self._fake_counts(monkeypatch, fits_at=14.0)
-        fitted, root = generate.fit_print_root(self.PAGE, label="menu.html")
-        assert root == 14.0
-        assert 'font-size: 14px' in fitted
+        fitted, root = generate.fit_print_root(
+            self.PAGE, label="menu.html", headroom_steps=1
+        )
+        assert root == 13.0
+        assert 'font-size: 13px' in fitted
+        fitted, root = generate.fit_print_root(
+            self.PAGE, label="menu.html", headroom_steps=2
+        )
+        assert root == 12.0
+        assert 'font-size: 12px' in fitted
 
-    def test_fit_skips_injection_when_default_fits(self, monkeypatch):
+    def test_fit_injects_margin_root_when_default_fits(self, monkeypatch):
+        # The default-fits case still injects: the headroom margin is part of
+        # the shipped fit, so the no-JS print keeps the margin even when the
+        # page fits at the default root.
         self._fake_counts(monkeypatch, fits_at=16.0)
-        fitted, root = generate.fit_print_root(self.PAGE, label="menu.html")
-        assert root is None
-        assert generate.PRINT_FIT_STYLE_ID not in fitted
+        fitted, root = generate.fit_print_root(
+            self.PAGE, label="menu.html", headroom_steps=1
+        )
+        assert root == 15.0
+        assert f'id="{generate.PRINT_FIT_STYLE_ID}"' in fitted
+        assert 'font-size: 15px' in fitted
+
+    def test_fit_reverifies_the_accepted_root_on_both_papers(self, monkeypatch):
+        calls = []
+
+        def fake(page_html, base_url=None, papers=generate.PAPER_SIZES):
+            root = 16.0
+            match = re.search(r"font-size: ([\d.]+)px", page_html)
+            if match:
+                root = float(match.group(1))
+            pages = 2 if root <= 14.0 else 3
+            calls.append((root, tuple(papers)))
+            return {size: pages for size in papers}
+
+        monkeypatch.setattr(generate, "render_page_counts", fake)
+        generate.fit_print_root(self.PAGE, label="menu.html", headroom_steps=1)
+        assert (14.0, (generate.PRINT_FIT_SEARCH_SIZE,)) in calls
+        assert (13.0, generate.PAPER_SIZES) in calls
 
     def test_fit_replaces_stale_injection(self, monkeypatch):
         self._fake_counts(monkeypatch, fits_at=14.0)
         pre_injected = generate.inject_print_root(self.PAGE, 12.0)
-        fitted, root = generate.fit_print_root(pre_injected, label="menu.html")
-        assert root == 14.0
+        fitted, root = generate.fit_print_root(
+            pre_injected, label="menu.html", headroom_steps=1
+        )
+        assert root == 13.0
         assert fitted.count(generate.PRINT_FIT_STYLE_ID) == 1
-        assert 'font-size: 14px' in fitted
+        assert 'font-size: 13px' in fitted
 
     def test_fit_fails_loudly_below_floor(self, monkeypatch):
         self._fake_counts(monkeypatch, fits_at=0.0)
@@ -1500,7 +1532,63 @@ class TestPrintFit:
         else:
             raise AssertionError("expected PrintFitError")
 
-    def test_fit_honors_finer_step_for_compact_page(self, monkeypatch):
+    def test_fit_clamps_the_margin_at_the_floor_with_a_loud_warning(
+        self, monkeypatch, capsys
+    ):
+        self._fake_counts(monkeypatch, fits_at=generate.PRINT_ROOT_FLOOR)
+        fitted, root = generate.fit_print_root(
+            self.PAGE, label="menu.html", headroom_steps=1
+        )
+        assert root == generate.PRINT_ROOT_FLOOR
+        assert "font-size: 11px" in fitted
+        captured = capsys.readouterr().out
+        assert "print fit: WARNING" in captured
+        assert "headroom" in captured
+
+    def test_fit_steps_past_a_non_monotonic_reverify_failure(self, monkeypatch):
+        def fake(page_html, base_url=None, papers=generate.PAPER_SIZES):
+            root = 16.0
+            match = re.search(r"font-size: ([\d.]+)px", page_html)
+            if match:
+                root = float(match.group(1))
+            # 13 fits the letter search but pathologically fails the
+            # both-paper re-verify; 12 fits everything.
+            letter = 2 if root <= 14.0 and root != 13.0 else 3
+            counts = {"letter": letter, "a4": 2}
+            return {size: counts[size] for size in papers}
+
+        monkeypatch.setattr(generate, "render_page_counts", fake)
+        fitted, root = generate.fit_print_root(
+            self.PAGE, label="menu.html", headroom_steps=1
+        )
+        assert root == 12.0
+        assert 'font-size: 12px' in fitted
+
+    def test_fit_raises_when_margin_stepping_hits_an_unfittable_floor(
+        self, monkeypatch
+    ):
+        def fake(page_html, base_url=None, papers=generate.PAPER_SIZES):
+            root = 16.0
+            match = re.search(r"font-size: ([\d.]+)px", page_html)
+            if match:
+                root = float(match.group(1))
+            # Only 14 verifies: every margin-stepped root below it overflows,
+            # so the margin walk must run out at the floor instead of looping
+            # forever.
+            pages = 2 if root == 14.0 else 3
+            return {size: pages for size in papers}
+
+        monkeypatch.setattr(generate, "render_page_counts", fake)
+        try:
+            generate.fit_print_root(
+                self.PAGE, label="menu.html", headroom_steps=1
+            )
+        except generate.PrintFitError as exc:
+            assert "floor" in str(exc)
+        else:
+            raise AssertionError("expected PrintFitError")
+
+    def test_fit_takes_the_compact_pages_calibrated_headroom_steps(self, monkeypatch):
         def fake(page_html, base_url=None, papers=generate.PAPER_SIZES):
             root = 16.0
             match = re.search(r"font-size: ([\d.]+)px", page_html)
@@ -1515,9 +1603,34 @@ class TestPrintFit:
             label="menu/compact.html",
             max_pages=generate.COMPACT_PAGE_BUDGET,
             step=generate.COMPACT_PRINT_ROOT_STEP,
+            headroom_steps=generate.PRINT_HEADROOM_STEPS["menu/compact.html"],
         )
-        assert root == 13.75
-        assert "font-size: 13.75px" in fitted
+        assert root == 13.25
+        assert "font-size: 13.25px" in fitted
+
+    def test_print_headroom_steps_carry_the_measured_calibration(self):
+        assert set(generate.PRINT_HEADROOM_STEPS) == {
+            "menu.html",
+            "menu/compact.html",
+            "bar.html",
+            "kitchen.html",
+        }
+        assert generate.PRINT_HEADROOM_STEPS["menu/compact.html"] == 2
+        for name in ("menu.html", "bar.html", "kitchen.html"):
+            assert generate.PRINT_HEADROOM_STEPS[name] == 1, name
+
+    def test_fit_rejects_a_headroom_below_one_step(self):
+        for headroom_steps in (0, -1, float("nan")):
+            try:
+                generate.fit_print_root(
+                    self.PAGE, label="x", headroom_steps=headroom_steps
+                )
+            except ValueError as exc:
+                assert "headroom" in str(exc)
+            else:
+                raise AssertionError(
+                    f"expected ValueError for headroom {headroom_steps!r}"
+                )
 
     def test_fit_rejects_non_positive_step(self):
         for step in (0, -1, float("nan")):
@@ -1713,6 +1826,25 @@ class TestBuildSite:
             "the PDF page-budget gate is meaningful at"
         )
 
+    def test_build_site_passes_each_page_its_calibrated_headroom(
+        self, monkeypatch, tmp_path
+    ):
+        captured = {}
+
+        def fake_fit(page_html, **kwargs):
+            captured[kwargs["label"]] = kwargs["headroom_steps"]
+            return generate.inject_print_root(page_html, 12.0), 12.0
+
+        def fake_pdf(*args, **kwargs):
+            pass
+
+        monkeypatch.setattr(generate, "fit_print_root", fake_fit)
+        monkeypatch.setattr(generate, "write_print_pdf", fake_pdf)
+        generate.build_site(
+            recipes_path=RECIPES_CAFE, out_dir=tmp_path / "public", fit_pages=True
+        )
+        assert captured == generate.PRINT_HEADROOM_STEPS
+
 
 PUBLISHED_PAGES = (
     "index.html",
@@ -1738,6 +1870,14 @@ def read_scaler_config(page_html: str) -> dict:
 
 
 class TestPrintScaler:
+    def test_scaler_cap_stays_at_the_default_root(self):
+        # The cap pins the JS-on scaler to the default root so it can walk
+        # upward from the (smaller) injected margin root; it must never
+        # inherit the margin-stepped root.
+        assert int(generate.PRINT_ROOT_DEFAULT) == 16
+        for name, config in generate.PRINT_SCALER_CONFIGS.items():
+            assert config["cap"] == int(generate.PRINT_ROOT_DEFAULT), name
+
     def _build(self, tmp_path):
         out = tmp_path / "public"
         generate.build_site(recipes_path=RECIPES_CAFE, out_dir=out, fit_pages=False)
@@ -1922,6 +2062,7 @@ class TestSharedPrintCss:
 
     def test_unterminated_marker_context_is_bounded_to_the_limit_or_newline(self):
         limit = generate.UNTERMINATED_MARKER_CONTEXT_LIMIT
+        prefix = "/*SHARED_PRINT:"
 
         def context_of(template: str) -> str:
             try:
@@ -1932,20 +2073,19 @@ class TestSharedPrintCss:
                 return ast.literal_eval(match.group(1))
             raise AssertionError("expected RuntimeError for an unresolved marker")
 
-        unbounded = "/*SHARED_PRINT:" + "x" * (limit * 3)
+        unbounded = prefix + "x" * (limit * 3)
         bounded = context_of(f"<style>\n  {unbounded}\n</style>")
         assert len(bounded) <= limit, (
             f"the unterminated marker context ran {len(bounded)} chars, over "
             f"the {limit}-char bound: one typo must not flood the build log"
         )
-        prefix = "/*SHARED_PRINT:"
         filler = max(limit - len(prefix) - 1, 1)
         before_newline = prefix + "y" * filler
         at_newline = context_of(f"<style>\n  {before_newline}\n  tail\n</style>")
         assert at_newline == before_newline, (
             "a newline inside the limit must end the context at the newline"
         )
-        terminated = "/*SHARED_PRINT:" + "z" * 150 + "*/"
+        terminated = prefix + "z" * 150 + "*/"
         full = context_of(f"<style>\n  {terminated}\n</style>")
         assert full == terminated, (
             "a terminated marker keeps its full text as the error context"
