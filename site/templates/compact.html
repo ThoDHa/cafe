@@ -194,6 +194,10 @@
      tuned for white stock and vanish against the cream card. */
   .tag.nong { color: var(--seal); border: 1.5px solid var(--seal); background: #ECCDC9; }
   .tag.da   { color: var(--cobalt); border: 1.5px solid var(--cobalt); background: #C7CDD8; }
+  /* Screen-only label tint: seal #B5372A on the #ECCDC9 fill is 3.99:1;
+     the 0.92-scaled #A63327 clears AA at 4.53:1. The unscoped rule above
+     keeps print text at var(--seal), so the print block and PDFs stand. */
+  @media screen { .tag.nong { color: #A63327; } }
 
   /* A pill type an item lacks leaves its slot reserved: the placeholder
      keeps the pill's box (same text, padding, border) so the two pill
