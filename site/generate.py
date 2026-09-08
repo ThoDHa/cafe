@@ -161,7 +161,10 @@ SHARED_PRINT_RULES = {
     # (css-break): Blink otherwise emits a pushed head's h2 text run in the
     # previous fragmentainer when its glyphs' ink crosses the page edge, which
     # prints tall Vietnamese diacritic ink into the A4 bottom margin band.
-    # Re-verify the A4 print before removing.
+    # Proven against Blink via chrome-headless-shell 1228. Removal condition:
+    # overflow: hidden clips silently if fallback font metrics ever exceed
+    # the 1.25 line box, so A4 print output must be re-verified before
+    # removing the workaround.
     "keep": (
         "    section, .item { break-inside: avoid; }\n"
         "    .section-head { overflow: hidden; break-after: avoid; }"
@@ -184,6 +187,11 @@ SHARED_PRINT_RULES = {
     # path, so printing the HTML page must never show the link.
     "pdf-link": "    .pdf-link { display: none; }",
 }
+
+# An unterminated /*SHARED_PRINT marker leaves the whole template remainder
+# as error context; the bound keeps one typo from flooding the build log
+# with the rest of the file.
+UNTERMINATED_MARKER_CONTEXT_LIMIT = 120
 
 
 class PrintFitError(Exception):
@@ -355,7 +363,14 @@ def inject_shared_print_css(page_html: str, template_name: str) -> str:
     start = page_html.find("/*SHARED_PRINT")
     if start != -1:
         end = page_html.find("*/", start)
-        leftover = page_html[start:] if end == -1 else page_html[start : end + 2]
+        if end == -1:
+            newline = page_html.find("\n", start)
+            stop = start + UNTERMINATED_MARKER_CONTEXT_LIMIT
+            if newline != -1:
+                stop = min(stop, newline)
+            leftover = page_html[start:stop]
+        else:
+            leftover = page_html[start : end + 2]
         raise RuntimeError(
             f"{template_name}: unresolved shared print CSS marker "
             f"{leftover!r}; markers must name a SHARED_PRINT_RULES entry"
