@@ -191,8 +191,10 @@
     white-space: nowrap;
   }
 
-  .tag.nong { color: var(--seal); border: 1.5px solid var(--seal); background: var(--sua); }
-  .tag.da   { color: var(--cobalt); border: 1.5px solid var(--cobalt); background: var(--sua); }
+  /* Screen tints run deeper than the print tints: the print fills are
+     tuned for white stock and vanish against the cream card. */
+  .tag.nong { color: var(--seal); border: 1.5px solid var(--seal); background: #ECCDC9; }
+  .tag.da   { color: var(--cobalt); border: 1.5px solid var(--cobalt); background: #C7CDD8; }
 
   .item-vi {
     font-family: var(--names);
