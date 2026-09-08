@@ -1457,16 +1457,23 @@ class TestKitchenRender:
 class TestPrintFit:
     PAGE = "<html><head><title>x</title></head><body><p>menu</p></body></html>"
 
-    def _fake_counts(self, monkeypatch, fits_at):
+    def _counting_counts(self, monkeypatch, fits_at):
+        calls = []
+
         def fake(page_html, base_url=None, papers=generate.PAPER_SIZES):
             root = 16.0
             match = re.search(r"font-size: ([\d.]+)px", page_html)
             if match:
                 root = float(match.group(1))
             pages = 2 if root <= fits_at else 3
+            calls.append((root, tuple(papers)))
             return {size: pages for size in papers}
 
         monkeypatch.setattr(generate, "render_page_counts", fake)
+        return calls
+
+    def _fake_counts(self, monkeypatch, fits_at):
+        self._counting_counts(monkeypatch, fits_at)
 
     def test_fit_ships_the_given_headroom_steps_below_the_first_fit(self, monkeypatch):
         self._fake_counts(monkeypatch, fits_at=14.0)
@@ -1494,21 +1501,46 @@ class TestPrintFit:
         assert 'font-size: 15px' in fitted
 
     def test_fit_reverifies_the_accepted_root_on_both_papers(self, monkeypatch):
-        calls = []
-
-        def fake(page_html, base_url=None, papers=generate.PAPER_SIZES):
-            root = 16.0
-            match = re.search(r"font-size: ([\d.]+)px", page_html)
-            if match:
-                root = float(match.group(1))
-            pages = 2 if root <= 14.0 else 3
-            calls.append((root, tuple(papers)))
-            return {size: pages for size in papers}
-
-        monkeypatch.setattr(generate, "render_page_counts", fake)
+        calls = self._counting_counts(monkeypatch, fits_at=14.0)
         generate.fit_print_root(self.PAGE, label="menu.html", headroom_steps=1)
         assert (14.0, (generate.PRINT_FIT_SEARCH_SIZE,)) in calls
         assert (13.0, generate.PAPER_SIZES) in calls
+
+    def test_fit_skips_the_reverify_when_the_clamp_lands_on_the_verified_root(
+        self, monkeypatch
+    ):
+        calls = self._counting_counts(
+            monkeypatch, fits_at=generate.PRINT_ROOT_FLOOR
+        )
+        fitted, root = generate.fit_print_root(
+            self.PAGE, label="menu.html", headroom_steps=1
+        )
+        assert root == generate.PRINT_ROOT_FLOOR
+        assert "font-size: 11px" in fitted
+        both_paper = [call for call in calls if call[1] == generate.PAPER_SIZES]
+        assert both_paper == [(generate.PRINT_ROOT_FLOOR, generate.PAPER_SIZES)], (
+            "a clamp landing on the root the walk just verified must not "
+            "re-render that candidate: the single both-paper render is the "
+            "outer verification itself, a second would be the redundant pair"
+        )
+
+    def test_fit_still_reverifies_a_real_margin_root_on_both_papers(
+        self, monkeypatch
+    ):
+        calls = self._counting_counts(monkeypatch, fits_at=14.0)
+        fitted, root = generate.fit_print_root(
+            self.PAGE, label="menu.html", headroom_steps=1
+        )
+        assert root == 13.0
+        assert "font-size: 13px" in fitted
+        both_paper_roots = [
+            call[0] for call in calls if call[1] == generate.PAPER_SIZES
+        ]
+        assert both_paper_roots == [14.0, 13.0], (
+            "a real margin root (accepted < root) must still re-render and "
+            "re-verify on both papers: one both-paper render at the verified "
+            "root and one at the accepted margin root"
+        )
 
     def test_fit_replaces_stale_injection(self, monkeypatch):
         self._fake_counts(monkeypatch, fits_at=14.0)
@@ -1734,20 +1766,19 @@ class TestPrintPdf:
 
 
 class TestPrintPdfLink:
-    """Needles pinning the screen-only PDF View link on the published pages."""
+    """Needles pinning the screen-only PDF View link on the published pages.
 
-    def _build(self, tmp_path):
-        out = tmp_path / "public"
-        generate.build_site(recipes_path=RECIPES_CAFE, out_dir=out, fit_pages=False)
-        return out
+    The page-backed needles share one build through the module-scoped
+    `no_fit_build` fixture.
+    """
 
     def _print_css(self, page_html: str, name: str) -> str:
         marker = "@media print {"
         assert marker in page_html, f"{name}: carries no @media print block"
         return page_html.split(marker, 1)[1].split("</style>", 1)[0]
 
-    def test_every_published_page_links_its_print_pdf(self, tmp_path):
-        out = self._build(tmp_path)
+    def test_every_published_page_links_its_print_pdf(self, no_fit_build):
+        out = no_fit_build
         expected = {
             "index.html": "menu.pdf",
             "menu.html": "menu.pdf",
@@ -1759,8 +1790,8 @@ class TestPrintPdfLink:
             page = (out / name).read_text()
             assert f'<a class="pdf-link" href="{pdf}">PDF View</a>' in page, name
 
-    def test_print_pdf_link_is_hidden_from_the_browser_print_css(self, tmp_path):
-        out = self._build(tmp_path)
+    def test_print_pdf_link_is_hidden_from_the_browser_print_css(self, no_fit_build):
+        out = no_fit_build
         for name in PUBLISHED_PAGES:
             page = (out / name).read_text()
             print_css = self._print_css(page, name)
@@ -1769,8 +1800,8 @@ class TestPrintPdfLink:
                 "the HTML page must never show the link"
             )
 
-    def test_pdf_only_footer_stays_out_of_the_published_pages(self, tmp_path):
-        out = self._build(tmp_path)
+    def test_pdf_only_footer_stays_out_of_the_published_pages(self, no_fit_build):
+        out = no_fit_build
         for name in PUBLISHED_PAGES:
             page = (out / name).read_text()
             assert "@bottom-center" not in page, name
@@ -1778,13 +1809,8 @@ class TestPrintPdfLink:
 
 
 class TestBuildSite:
-    def _build(self, tmp_path):
-        out = tmp_path / "public"
-        generate.build_site(recipes_path=RECIPES_CAFE, out_dir=out, fit_pages=False)
-        return out
-
-    def test_build_site_writes_full_artifact(self, tmp_path):
-        out = self._build(tmp_path)
+    def test_build_site_writes_full_artifact(self, no_fit_build):
+        out = no_fit_build
         expected = [
             "index.html",
             "menu.html",
@@ -1798,15 +1824,15 @@ class TestBuildSite:
         for page in ("kitchen.html", "bar.html"):
             assert "CAFE ÔNG THỌ" in (out / page).read_text()
 
-    def test_homepage_is_the_full_menu(self, tmp_path):
-        out = self._build(tmp_path)
+    def test_homepage_is_the_full_menu(self, no_fit_build):
+        out = no_fit_build
         homepage = (out / "index.html").read_text()
         assert ">CÀ PHÊ<" in homepage
         assert ">GIẢI KHÁT<" in homepage
         assert 'class="tag nong"' in homepage
 
-    def test_no_fit_pages_build_writes_no_print_pdfs(self, tmp_path):
-        out = self._build(tmp_path)
+    def test_no_fit_pages_build_writes_no_print_pdfs(self, no_fit_build):
+        out = no_fit_build
         assert not list(out.rglob("*.pdf")), (
             "--no-fit-pages must stay the fast artifact path: the print PDFs "
             "belong to the fit pass, whose fitted roots are the only state "
@@ -1843,11 +1869,21 @@ PUBLISHED_PAGES = (
 
 
 @pytest.fixture(scope="module")
-def shared_print_pages(tmp_path_factory) -> dict[str, str]:
-    """Build the site once and return each published page's text by name."""
-    out = tmp_path_factory.mktemp("shared-print-css") / "public"
+def no_fit_build(tmp_path_factory) -> Path:
+    """Build the site once on the --no-fit-pages fast path.
+
+    Returns the public output directory; the page-backed needle classes
+    read it read-only, so one build serves every test in the module.
+    """
+    out = tmp_path_factory.mktemp("no-fit-build") / "public"
     generate.build_site(recipes_path=RECIPES_CAFE, out_dir=out, fit_pages=False)
-    return {name: (out / name).read_text() for name in PUBLISHED_PAGES}
+    return out
+
+
+@pytest.fixture(scope="module")
+def shared_print_pages(no_fit_build) -> dict[str, str]:
+    """Return each published page's text from the one shared module build."""
+    return {name: (no_fit_build / name).read_text() for name in PUBLISHED_PAGES}
 
 
 class TestSharedPrintCss:

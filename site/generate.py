@@ -600,7 +600,7 @@ def fit_print_root(
     max_pages: int = PRINT_PAGE_BUDGET,
     step: float = PRINT_ROOT_STEP,
     headroom_steps: int = 1,
-) -> tuple[str, float | None]:
+) -> tuple[str, float]:
     """Fit a page's print root under its page budget, with headroom margin.
 
     Walks down from ``PRINT_ROOT_DEFAULT`` by ``step`` to the floor, accepts
@@ -610,11 +610,13 @@ def fit_print_root(
     browser whose fragmentation drifts from weasyprint near the page edge.
     Per-page calibration lives in ``PRINT_HEADROOM_STEPS``, which
     ``build_site`` feeds in here. The accepted root is re-verified on both
-    papers before returning; a pathological non-monotonic failure keeps
-    stepping down to the floor. When the margin cannot fit above the floor a
-    loud warning prints and the floor root ships unmarginned. Raises
-    ``ValueError`` for a headroom below one step and ``PrintFitError`` when
-    even the floor cannot satisfy the budget.
+    papers before returning, except when the floor clamp lands the margin on
+    the root the walk just verified: the margin candidate is then
+    byte-identical to the verified one, so the held counts gate it. A
+    pathological non-monotonic failure keeps stepping down to the floor,
+    where a loud warning prints and the floor root ships without its
+    headroom margin. Raises ``ValueError`` for a headroom below one step and
+    ``PrintFitError`` when even the floor cannot satisfy the budget.
     """
 
     if not (step > 0):
@@ -642,7 +644,8 @@ def fit_print_root(
                     round(root - headroom_steps * step, 2),
                     PRINT_ROOT_FLOOR,
                 )
-                if root - headroom_steps * step < PRINT_ROOT_FLOOR:
+                clamped_at_floor = root - headroom_steps * step < PRINT_ROOT_FLOOR
+                if clamped_at_floor:
                     print(
                         f"print fit: WARNING {label} clamps at the "
                         f"{PRINT_ROOT_FLOOR:g}px floor: the "
@@ -650,9 +653,17 @@ def fit_print_root(
                         "exhausted; make verify-print-chrome must clear "
                         "this root"
                     )
+                # The clamp landing accepted == root re-renders the exact
+                # candidate the walk just verified on both papers; gate it
+                # on the counts already held. Real margin roots re-verify.
+                if clamped_at_floor and accepted == root:
+                    margin_counts = full_counts
+                else:
+                    margin_counts = None
                 while True:
-                    candidate = inject_print_root(page_html, accepted)
-                    margin_counts = render_page_counts(candidate)
+                    if margin_counts is None:
+                        candidate = inject_print_root(page_html, accepted)
+                        margin_counts = render_page_counts(candidate)
                     if all(
                         count <= max_pages for count in margin_counts.values()
                     ):
@@ -663,6 +674,7 @@ def fit_print_root(
                             f"{PRINT_ROOT_FLOOR:g}px floor (measured {margin_counts} on "
                             f"{', '.join(PAPER_SIZES)}); remove items or raise the page budget"
                         )
+                    margin_counts = None
                     accepted = round(accepted - step, 2)
         if root <= PRINT_ROOT_FLOOR:
             raise PrintFitError(
@@ -705,7 +717,7 @@ def build_site(
         f"from {readme_path.name}"
     )
     out_dir.mkdir(parents=True, exist_ok=True)
-    fitted: list[tuple[str, float | None]] = []
+    fitted: list[tuple[str, float]] = []
     menu_page = render_menu_page(menu)
     if fit_pages:
         menu_page, menu_root = fit_print_root(
@@ -767,10 +779,7 @@ def build_site(
                 max_pages=PDF_PAGE_BUDGETS[pdf_name],
             )
     for label, root in fitted:
-        if root is None:
-            print(f"print fit: {label} fits at the default 16px root")
-        else:
-            print(f"print fit: {label} fitted at a {root:g}px root")
+        print(f"print fit: {label} fitted at a {root:g}px root")
     return menu
 
 
