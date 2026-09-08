@@ -1658,6 +1658,14 @@ PUBLISHED_PAGES = (
 )
 
 
+@pytest.fixture(scope="module")
+def shared_print_pages(tmp_path_factory) -> dict[str, str]:
+    """Build the site once and yield each published page's text."""
+    out = tmp_path_factory.mktemp("shared-print-css") / "public"
+    generate.build_site(recipes_path=RECIPES_CAFE, out_dir=out, fit_pages=False)
+    return {name: (out / name).read_text() for name in PUBLISHED_PAGES}
+
+
 def read_scaler_config(page_html: str) -> dict:
     match = re.search(r"data-print-fit='([^']+)'", page_html)
     assert match, "page carries no scaler configuration"
@@ -1736,34 +1744,60 @@ class TestSharedPrintCss:
     every built page, no fixed-position print CSS, and one common @page rule.
     A failure here names the broken invariant, instead of surfacing late as
     a print-budget overflow.
+
+    The page-backed needles share one build through the module-scoped
+    `shared_print_pages` fixture.
     """
 
-    def _build(self, tmp_path):
-        out = tmp_path / "public"
-        generate.build_site(recipes_path=RECIPES_CAFE, out_dir=out, fit_pages=False)
-        return out
+    # The @page rule is injected above the @media print block: it is a
+    # stylesheet-level rule and print-only by CSS definition (@page cannot
+    # nest in @media screen), so its exactly-once count stays whole-page.
+    # Every other shared rule lives inside the print block and is counted
+    # there, so a future screen-media copy of a rule's text cannot trip
+    # this needle.
+    WHOLE_PAGE_COUNTED_RULES = frozenset({"page"})
 
     def _print_css(self, page_html: str, name: str) -> str:
         marker = "@media print {"
         assert marker in page_html, f"{name}: carries no @media print block"
         return page_html.split(marker, 1)[1].split("</style>", 1)[0]
 
-    def test_every_built_page_carries_each_shared_print_rule(self, tmp_path):
-        out = self._build(tmp_path)
-        for name in PUBLISHED_PAGES:
-            page = (out / name).read_text()
+    def _count_shared_rule(self, page_html: str, name: str, key: str, css: str) -> int:
+        if key in self.WHOLE_PAGE_COUNTED_RULES:
+            return page_html.count(css)
+        return self._print_css(page_html, name).count(css)
+
+    def test_every_built_page_carries_each_shared_print_rule(self, shared_print_pages):
+        for name, page in shared_print_pages.items():
             for key, css in generate.SHARED_PRINT_RULES.items():
-                count = page.count(css)
+                count = self._count_shared_rule(page, name, key, css)
                 assert count == 1, (
                     f"{name}: shared print rule {key!r} appears {count} times; "
                     "each shared rule must appear exactly once per page, or a "
-                    "duplicated copy doubles the rule's effect"
+                    "duplicated copy doubles the rule's effect (counted within "
+                    "the page's print block; the @page rule is counted across "
+                    "the whole page)"
                 )
 
-    def test_every_built_page_keeps_section_head_monolithic_in_print(self, tmp_path):
-        out = self._build(tmp_path)
-        for name in PUBLISHED_PAGES:
-            page = (out / name).read_text()
+    def test_exactly_once_needle_counts_a_duplicated_shared_rule_in_the_print_block(
+        self,
+    ):
+        rule = generate.SHARED_PRINT_RULES["keep"]
+        page_html = (
+            "<html><head><style>@media print {\n"
+            f"{rule}\n{rule}\n"
+            "}</style></head><body></body></html>"
+        )
+        count = self._count_shared_rule(page_html, "unit.html", "keep", rule)
+        assert count == 2, (
+            "expected the exactly-once needle to count a shared rule "
+            f"duplicated inside the print block twice, counted {count}"
+        )
+
+    def test_every_built_page_keeps_section_head_monolithic_in_print(
+        self, shared_print_pages
+    ):
+        for name, page in shared_print_pages.items():
             print_css = self._print_css(page, name)
             assert ".section-head { overflow: hidden; break-after: avoid; }" in print_css, (
                 f"{name}: .section-head is not monolithic in print; without "
@@ -1772,21 +1806,17 @@ class TestSharedPrintCss:
                 "margin band"
             )
 
-    def test_no_built_page_declares_fixed_position_print_css(self, tmp_path):
-        out = self._build(tmp_path)
-        for name in PUBLISHED_PAGES:
-            page = (out / name).read_text()
+    def test_no_built_page_declares_fixed_position_print_css(self, shared_print_pages):
+        for name, page in shared_print_pages.items():
             print_css = self._print_css(page, name)
             assert "position: fixed" not in print_css, (
                 f"{name}: print CSS contains position: fixed; printed headers "
                 "and footers must stay in the page flow"
             )
 
-    def test_every_built_page_declares_the_same_page_rule(self, tmp_path):
-        out = self._build(tmp_path)
+    def test_every_built_page_declares_the_same_page_rule(self, shared_print_pages):
         by_rules: dict[tuple[str, ...], list[str]] = {}
-        for name in PUBLISHED_PAGES:
-            page = (out / name).read_text()
+        for name, page in shared_print_pages.items():
             rules = re.findall(r"@page \{[^}]*\}", page)
             assert rules, f"{name}: declares no @page rule"
             by_rules.setdefault(tuple(rules), []).append(name)
