@@ -1228,12 +1228,6 @@ class TestRender:
         ]:
             assert needle in page, f"missing {needle!r}"
 
-    def test_render_contains_temperature_pills(self):
-        menu = generate.parse_menu(RECIPES_CAFE.read_text())
-        page = generate.render_menu_page(menu)
-        assert 'class="tag nong"' in page
-        assert 'class="tag da"' in page
-
     def test_render_places_pills_in_fixed_two_slot_order(self):
         menu = generate.parse_menu(RECIPES_CAFE.read_text())
         page = generate.render_menu_page(menu)
@@ -1250,6 +1244,12 @@ class TestRender:
         }
         assert page.count('<span class="tag nong">') == temperatures["hot"]
         assert page.count('<span class="tag da">') == temperatures["iced"]
+        assert 'class="tag nong"' in page, (
+            "at least one real nóng pill must be present"
+        )
+        assert 'class="tag da"' in page, (
+            "at least one real đá pill must be present"
+        )
         assert (
             page.count('<span class="tag slot nong" aria-hidden="true">')
             == pill_items - temperatures["hot"]
