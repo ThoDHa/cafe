@@ -23,10 +23,9 @@ to a print-ready PDF next to its HTML (menu.pdf, menu/compact.pdf, bar.pdf,
 kitchen.pdf): the PDF carries the brand line in an @page bottom margin box
 on every page, which browsers cannot do in their print preview, so the PDF
 is the print path. Pass --no-fit-pages to skip this pass (used by fast
-artifact tests). The published pages also reference the shared beforeprint
-scaler (menu/assets/print-fit.js), which refines the fitted root for the
-visitor's browser at print time; without JavaScript the build-injected fit
-applies unchanged. Each injected fit carries a per-page headroom margin
+artifact tests). The build-injected fit always applies: every browser
+print uses the same fitted margin root, with no print-time scripting.
+Each injected fit carries a per-page headroom margin
 (PRINT_HEADROOM_STEPS) below the largest root weasyprint fits, calibrated
 against Chrome for Testing 153 to absorb the measured
 weasyprint-versus-Chrome fragmentation drift near the page edge, and
@@ -41,7 +40,6 @@ import html
 import json
 import math
 import re
-import shutil
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -52,7 +50,6 @@ MENU_DIR = REPO_ROOT / "menu"
 DEFAULT_RECIPES = REPO_ROOT.parent / "recipes" / "cafe.md"
 DEFAULT_OUT = SITE_DIR / "public"
 TEMPLATES_DIR = SITE_DIR / "templates"
-MENU_SOURCE_DIR = MENU_DIR
 DEFAULT_OVERRIDES = SITE_DIR / "menu-overrides.json"
 
 sys.path.insert(0, str(MENU_DIR))
@@ -111,7 +108,6 @@ PRINT_HEADROOM_STEPS = {
 PAPER_SIZES = ("a4", "letter")
 PRINT_FIT_SEARCH_SIZE = "letter"
 PRINT_FIT_STYLE_ID = "print-fit"
-PRINT_SCALER_ASSET_NAME = "print-fit.js"
 # The print PDF is rendered on A4 sheets: the standing margin rule for the
 # published menus is measured on A4, and weasyprint pins the page size so
 # the artifact does not depend on a viewer default.
@@ -143,29 +139,6 @@ header { box-shadow: inset 0 0 0 4px #fff, inset 0 0 0 5px #1F3564 !important; }
 }
 """
 
-
-def _scaler_config(budget: int, page_margins_mm: list[float]) -> dict:
-    return {
-        "budget": budget,
-        "cap": int(PRINT_ROOT_DEFAULT),
-        "paper": "letter",
-        "pageMarginsMm": page_margins_mm,
-    }
-
-
-# Print-time scaler configuration per published page: the page budget and
-# root cap mirrored from the build fit, plus the @page margins (top, bottom)
-# in mm each page declares for itself. All four pages share the same
-# template @page rule (0.6cm sides and top, 1.2cm bottom = 6/12mm), so the
-# browser-side fit models the declared band for every copy. Letter is the
-# binding paper for every page; A4 is taller and keeps its geometric
-# remainder.
-PRINT_SCALER_CONFIGS = {
-    "menu.html": _scaler_config(PRINT_PAGE_BUDGET, [6, 12]),
-    "menu/compact.html": _scaler_config(COMPACT_PAGE_BUDGET, [6, 12]),
-    "kitchen.html": _scaler_config(PRINT_PAGE_BUDGET, [6, 12]),
-    "bar.html": _scaler_config(BAR_PAGE_BUDGET, [6, 12]),
-}
 
 # The one copy of the print rules shared by every built page, defined
 # empirically as the rules byte-identical across all four templates after
@@ -560,23 +533,6 @@ def inject_print_root(page_html: str, root_px: float) -> str:
     return page_html.replace("</head>", f"  {style}\n</head>", 1)
 
 
-def inject_print_scaler(page_html: str, page_name: str) -> str:
-    prefix = "../" if "/" in page_name else ""
-    payload = json.dumps(PRINT_SCALER_CONFIGS[page_name], separators=(",", ":"))
-    # The attribute is single-quoted: escape &, <, > and single quotes so a
-    # future config cannot break out, while today's constants stay
-    # byte-identical (they carry none of those characters; the browser
-    # decodes entities, so JSON.parse still sees the raw payload). Plain
-    # html.escape(quote=True) would also rewrite the payload's double
-    # quotes and change the built pages.
-    payload = html.escape(payload, quote=False).replace("'", "&#x27;")
-    tag = (
-        f'<script defer src="{prefix}assets/{PRINT_SCALER_ASSET_NAME}" '
-        f"data-print-fit='{payload}'></script>"
-    )
-    return page_html.replace("</body>", f"  {tag}\n</body>", 1)
-
-
 def _load_weasyprint() -> tuple[type, type]:
     try:
         from weasyprint import CSS, HTML
@@ -749,12 +705,6 @@ def build_site(
         f"from {readme_path.name}"
     )
     out_dir.mkdir(parents=True, exist_ok=True)
-    scaler_asset = MENU_SOURCE_DIR.joinpath("assets", PRINT_SCALER_ASSET_NAME)
-    if not scaler_asset.is_file():
-        raise RuntimeError(
-            f"missing {scaler_asset}; the published pages reference it "
-            "for print-time scaling"
-        )
     fitted: list[tuple[str, float | None]] = []
     menu_page = render_menu_page(menu)
     if fit_pages:
@@ -764,7 +714,6 @@ def build_site(
             headroom_steps=PRINT_HEADROOM_STEPS["menu.html"],
         )
         fitted.append(("index.html", menu_root))
-    menu_page = inject_print_scaler(menu_page, "menu.html")
     (out_dir / "index.html").write_text(menu_page)
     (out_dir / "menu.html").write_text(menu_page)
     compact_page = render_compact_page(menu)
@@ -777,7 +726,6 @@ def build_site(
             headroom_steps=PRINT_HEADROOM_STEPS["menu/compact.html"],
         )
         fitted.append(("menu/compact.html", compact_root))
-    compact_page = inject_print_scaler(compact_page, "menu/compact.html")
     (out_dir / "menu").mkdir(exist_ok=True)
     (out_dir / "menu" / "compact.html").write_text(compact_page)
     bar_page = render_bar_page(bar_items)
@@ -789,7 +737,6 @@ def build_site(
             headroom_steps=PRINT_HEADROOM_STEPS["bar.html"],
         )
         fitted.append(("bar.html", bar_root))
-    bar_page = inject_print_scaler(bar_page, "bar.html")
     (out_dir / "bar.html").write_text(bar_page)
     kitchen_page = render_kitchen_page(kitchen_menu)
     if fit_pages:
@@ -800,17 +747,11 @@ def build_site(
             headroom_steps=PRINT_HEADROOM_STEPS["kitchen.html"],
         )
         fitted.append(("kitchen.html", kitchen_root))
-    kitchen_page = inject_print_scaler(kitchen_page, "kitchen.html")
     (out_dir / "kitchen.html").write_text(kitchen_page)
-    assets_out = out_dir / "assets"
-    assets_out.mkdir(exist_ok=True)
-    for asset in MENU_SOURCE_DIR.joinpath("assets").iterdir():
-        if asset.is_file() and asset.name != ".gitkeep":
-            shutil.copyfile(asset, assets_out / asset.name)
     if fit_pages:
-        # The PDF artifact renders from the final built HTML (fit-injected
-        # root and scaler tag included), so it paginates exactly like the
-        # published page does without JavaScript. --no-fit-pages skips it:
+        # The PDF artifact renders from the final built HTML (the
+        # fit-injected root included), so it paginates exactly like the
+        # published page. --no-fit-pages skips it:
         # without the fit pass the unfitted roots legitimately overflow the
         # budgets and the gate would fail by design.
         for pdf_name, page_html in (

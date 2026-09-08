@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Verify the built menus print inside budget in Chrome with JavaScript off.
 
-The build gate fits pages with weasyprint only, so the no-JavaScript print
-promise ("without JavaScript the build-injected fit applies unchanged") is
-checked here, against a real browser: this sensor prints every built page in
-the pinned Chrome for Testing shell with a java_script_enabled=False context
-(so the print-fit scaler never runs), waits for the page's load event plus
+The build gate fits pages with weasyprint only, so the universal print
+promise ("the build-injected fit always applies; no print-time scripting
+exists") is checked here, against a real browser: this sensor prints every
+built page in the pinned Chrome for Testing shell with a
+java_script_enabled=False context (the conservative worst case), waits for
+the page's load event plus
 document.fonts.ready, and renders each page to PDF twice, on Letter and on
 explicit 8.27in x 11.69in A4. Page counts are checked against each page's
 print budget; any overflow is reported and the exit code is non-zero.

@@ -4,11 +4,8 @@ Run: uv run --with pytest pytest site/ -q
 """
 
 import ast
-import json
 import os
 import re
-import shutil
-import subprocess
 import sys
 import textwrap
 from pathlib import Path
@@ -1808,16 +1805,6 @@ class TestBuildSite:
         assert ">GIẢI KHÁT<" in homepage
         assert 'class="tag nong"' in homepage
 
-    def test_build_site_copies_assets(self, tmp_path):
-        out = self._build(tmp_path)
-        asset_source = REPO_ROOT / "menu" / "assets"
-        if any(asset_source.iterdir()):
-            copied = {p.name for p in (out / "assets").iterdir()}
-            expected = {
-                p.name for p in asset_source.iterdir() if p.name != ".gitkeep"
-            }
-            assert copied == expected
-
     def test_no_fit_pages_build_writes_no_print_pdfs(self, tmp_path):
         out = self._build(tmp_path)
         assert not list(out.rglob("*.pdf")), (
@@ -1861,85 +1848,6 @@ def shared_print_pages(tmp_path_factory) -> dict[str, str]:
     out = tmp_path_factory.mktemp("shared-print-css") / "public"
     generate.build_site(recipes_path=RECIPES_CAFE, out_dir=out, fit_pages=False)
     return {name: (out / name).read_text() for name in PUBLISHED_PAGES}
-
-
-def read_scaler_config(page_html: str) -> dict:
-    match = re.search(r"data-print-fit='([^']+)'", page_html)
-    assert match, "page carries no scaler configuration"
-    return json.loads(match.group(1))
-
-
-class TestPrintScaler:
-    def test_scaler_cap_stays_at_the_default_root(self):
-        # The cap pins the JS-on scaler to the default root so it can walk
-        # upward from the (smaller) injected margin root; it must never
-        # inherit the margin-stepped root.
-        assert int(generate.PRINT_ROOT_DEFAULT) == 16
-        for name, config in generate.PRINT_SCALER_CONFIGS.items():
-            assert config["cap"] == int(generate.PRINT_ROOT_DEFAULT), name
-
-    def _build(self, tmp_path):
-        out = tmp_path / "public"
-        generate.build_site(recipes_path=RECIPES_CAFE, out_dir=out, fit_pages=False)
-        return out
-
-    def test_scaler_script_is_referenced_by_every_published_page(self, tmp_path):
-        out = self._build(tmp_path)
-        expected_src = {
-            "index.html": "assets/print-fit.js",
-            "menu.html": "assets/print-fit.js",
-            "kitchen.html": "assets/print-fit.js",
-            "bar.html": "assets/print-fit.js",
-            "menu/compact.html": "../assets/print-fit.js",
-        }
-        for name, src in expected_src.items():
-            page = (out / name).read_text()
-            assert f'<script defer src="{src}"' in page, name
-            config = read_scaler_config(page)
-            assert config["cap"] == 16, name
-            assert config["paper"] == "letter", name
-
-    def test_compact_and_bar_budget_is_one_page_and_others_are_two(self, tmp_path):
-        out = self._build(tmp_path)
-        for name in ("menu/compact.html", "bar.html"):
-            config = read_scaler_config((out / name).read_text())
-            assert config["budget"] == 1, name
-        assert read_scaler_config((out / "menu" / "compact.html").read_text())[
-            "pageMarginsMm"
-        ] == [6, 12]
-        for name in ("index.html", "menu.html", "kitchen.html"):
-            config = read_scaler_config((out / name).read_text())
-            assert config["budget"] == 2, name
-        assert read_scaler_config((out / "menu.html").read_text())[
-            "pageMarginsMm"
-        ] == [6, 12]
-        for name in ("kitchen.html", "bar.html"):
-            assert read_scaler_config((out / name).read_text())[
-                "pageMarginsMm"
-            ] == [6, 12], name
-
-    def test_scaler_asset_is_published_into_assets(self, tmp_path):
-        out = self._build(tmp_path)
-        published = out / "assets" / generate.PRINT_SCALER_ASSET_NAME
-        source = REPO_ROOT / "menu" / "assets" / generate.PRINT_SCALER_ASSET_NAME
-        assert published.is_file()
-        assert published.read_bytes() == source.read_bytes()
-
-    def test_missing_scaler_asset_fails_the_build(self, tmp_path, monkeypatch):
-        menu_dir = tmp_path / "menu"
-        (menu_dir / "assets").mkdir(parents=True)
-        page = "<html><head><title>x</title></head><body><p>menu</p></body></html>"
-        for name in ("kitchen.html", "bar.html"):
-            (menu_dir / name).write_text(page)
-        monkeypatch.setattr(generate, "MENU_SOURCE_DIR", menu_dir)
-        try:
-            generate.build_site(
-                recipes_path=RECIPES_CAFE, out_dir=tmp_path / "public", fit_pages=False
-            )
-        except RuntimeError as exc:
-            assert generate.PRINT_SCALER_ASSET_NAME in str(exc)
-        else:
-            raise AssertionError("expected the build to fail without the scaler asset")
 
 
 class TestSharedPrintCss:
@@ -2091,113 +1999,3 @@ class TestSharedPrintCss:
             "a terminated marker keeps its full text as the error context"
         )
 
-
-NODE_SCENARIOS = """
-const assert = require("assert");
-const solver = require(process.argv[1]);
-const pxPerMm = solver.MM_TO_PX;
-
-const compact = solver.geometry({ paper: "letter", pageMarginsMm: [6, 12] });
-assert.ok(Math.abs(compact.capacity - (279.4 - 18) * pxPerMm) < 1e-6);
-assert.ok(Math.abs(compact.areaWidth - (215.9 - 12) * pxPerMm) < 1e-6);
-const legacyBrowserDefaultMargins = solver.geometry({ paper: "letter", pageMarginsMm: [12.7, 12.7] });
-assert.ok(Math.abs(legacyBrowserDefaultMargins.capacity - (279.4 - 25.4) * pxPerMm) < 1e-6);
-assert.equal(solver.geometry({ paper: "a4", pageMarginsMm: [6, 12] }), null);
-assert.equal(solver.geometry({ paper: "letter", pageMarginsMm: [6] }), null);
-
-const flat = solver.flattenMedia(
-  "@media print { a } @media screen { b } @media (min-width: 0) { c }"
-);
-assert.ok(flat.includes("@media all"));
-assert.ok(flat.includes("@media not all"));
-assert.ok(flat.includes("@media (min-width: 0)"));
-
-function linearLayout(sumAt16, lead, tail) {
-  return (root) => {
-    const flow = (sumAt16 * root) / 16;
-    return {
-      blocks: [{ h: flow, breakBefore: false }],
-      pageLead: lead,
-      pageTail: tail,
-      total: lead + tail + flow
-    };
-  };
-}
-
-const capacity = 988;
-
-// clamps at the cap when every candidate fits
-assert.equal(
-  solver.solveRoot(linearLayout(100, 10, 10), { start: 14.25, cap: 16, budget: 1, capacity }),
-  16
-);
-// clamps a start above the cap back into range
-assert.equal(
-  solver.solveRoot(linearLayout(100, 10, 10), { start: 19, cap: 16, budget: 1, capacity }),
-  16
-);
-// degrades to null when even the floor cannot satisfy the budget
-assert.equal(
-  solver.solveRoot(linearLayout(100000, 10, 10), { start: 14.25, cap: 16, budget: 1, capacity }),
-  null
-);
-
-// walk-down then refinement lands on the largest full-page fill
-const refined = solver.solveRoot(linearLayout(1100, 10, 10), {
-  start: 16, cap: 16, budget: 1, capacity
-});
-assert.equal(refined, 13.9);
-
-// forced page breaks split the packing into separate pages
-assert.equal(
-  solver.estimatePageCount(
-    [{ h: 400, breakBefore: false }, { h: 480, breakBefore: true }],
-    10, 10, 1000, 0.01
-  ),
-  2
-);
-assert.equal(
-  solver.estimatePageCount(
-    [{ h: 400, breakBefore: false }, { h: 480, breakBefore: false }],
-    10, 10, 1000, 0.01
-  ),
-  1
-);
-// blocks taller than a page fragment like the engines render them
-assert.equal(
-  solver.estimatePageCount([{ h: 2000, breakBefore: false }], 10, 10, 1000, 0.01),
-  3
-);
-
-// boundary margins: with margins folded into block heights, the tail
-// margin counts against the same page's capacity (the measureIn model's
-// boundary case)
-assert.equal(
-  solver.estimatePageCount([{ h: 940 }], 10, 100, 988, 0.01),
-  2
-);
-assert.equal(
-  solver.estimatePageCount([{ h: 860 }], 10, 100, 988, 0.01),
-  1
-);
-
-// a two-page budget keeps a layout the one-page budget must refuse
-const twoPages = solver.solveRoot(linearLayout(1100, 10, 10), {
-  start: 16, cap: 16, budget: 2, capacity
-});
-assert.equal(twoPages, 16);
-"""
-
-
-class TestPrintScalerSolverNode:
-    @pytest.mark.skipif(shutil.which("node") is None, reason="node not available")
-    def test_pure_solver_passes_node_smoke_scenarios(self):
-        asset = REPO_ROOT / "menu" / "assets" / generate.PRINT_SCALER_ASSET_NAME
-        assert asset.is_file()
-        result = subprocess.run(
-            ["node", "-e", NODE_SCENARIOS, str(asset)],
-            capture_output=True,
-            text=True,
-            timeout=60,
-        )
-        assert result.returncode == 0, (result.stdout, result.stderr)
