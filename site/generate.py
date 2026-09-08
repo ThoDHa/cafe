@@ -323,15 +323,23 @@ def items_open_tag(item_count: int, columns: int) -> str:
     return f'<div class="items" style="grid-template-rows: repeat({rows}, auto)">'
 
 
-def render_section(section: Section, item_renderer=None, columns: int = 2) -> str:
+def render_section(
+    section: Section,
+    item_renderer=None,
+    columns: int = 2,
+    css_class: str | None = None,
+) -> str:
     if item_renderer is None:
 
         def item_renderer(item: Item) -> str:
             return render_item(item, section.show_pills)
 
     items = "\n".join(item_renderer(item) for item in section.items)
+    opening = (
+        "  <section>" if css_class is None else f'  <section class="{css_class}">'
+    )
     parts = [
-        "  <section>",
+        opening,
         '    <div class="section-head">',
         f"      <h2>{html.escape(section.title_vi.upper())}</h2>",
         f'      <span class="section-en">{html.escape(section.title_en)}</span>',
@@ -386,9 +394,28 @@ def read_template(name: str) -> str:
     )
 
 
+# The drinks page's second printed sheet opens with Mát-cha: the menu
+# render alone tags that section with .own-page (print-only break-before
+# in the template), so page 1 = Cà Phê + Trà and page 2 = Mát-cha + the
+# rest. The compact and kitchen renders share render_section and never
+# pass the class.
+MENU_PAGE_BREAK_SECTION_ID = "mat-cha"
+OWN_PAGE_CSS_CLASS = "own-page"
+
+
 def render_menu_page(menu: Menu) -> str:
     template = read_template("menu.html")
-    sections_html = "\n".join(render_section(section) for section in menu.sections)
+    sections_html = "\n".join(
+        render_section(
+            section,
+            css_class=(
+                OWN_PAGE_CSS_CLASS
+                if section.id == MENU_PAGE_BREAK_SECTION_ID
+                else None
+            ),
+        )
+        for section in menu.sections
+    )
     return template.replace("<!--SECTIONS-->", sections_html)
 
 

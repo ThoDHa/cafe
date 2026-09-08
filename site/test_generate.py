@@ -3,6 +3,7 @@
 Run: uv run --with pytest pytest site/ -q
 """
 
+import ast
 import json
 import os
 import re
@@ -1233,6 +1234,22 @@ class TestRender:
         assert 'class="tag nong"' in page
         assert 'class="tag da"' in page
 
+    def test_print_page_break_is_tagged_on_mat_cha_in_menu_render_only(self):
+        menu = generate.parse_menu(RECIPES_CAFE.read_text())
+        menu_page = generate.render_menu_page(menu)
+        tagged = re.findall(
+            r'<section class="own-page">\s*<div class="section-head">\s*'
+            r"<h2>([^<]+)</h2>",
+            menu_page,
+        )
+        assert tagged == ["MÁT-CHA"], (
+            f"the print page break must sit on exactly the Mát-cha section "
+            f"of the menu render; found own-page on {tagged or 'no section'}"
+        )
+        assert 'class="own-page"' not in generate.render_compact_page(menu), (
+            "the compact render must never carry the print page break"
+        )
+
     def test_render_has_no_ordering_artifacts(self):
         menu = generate.parse_menu(RECIPES_CAFE.read_text())
         page = generate.render_menu_page(menu)
@@ -1660,7 +1677,7 @@ PUBLISHED_PAGES = (
 
 @pytest.fixture(scope="module")
 def shared_print_pages(tmp_path_factory) -> dict[str, str]:
-    """Build the site once and yield each published page's text."""
+    """Build the site once and return each published page's text by name."""
     out = tmp_path_factory.mktemp("shared-print-css") / "public"
     generate.build_site(recipes_path=RECIPES_CAFE, out_dir=out, fit_pages=False)
     return {name: (out / name).read_text() for name in PUBLISHED_PAGES}
@@ -1854,6 +1871,35 @@ class TestSharedPrintCss:
             raise AssertionError(
                 "expected RuntimeError for a marker whose key contains an asterisk"
             )
+
+    def test_unterminated_marker_context_is_bounded_to_the_limit_or_newline(self):
+        limit = generate.UNTERMINATED_MARKER_CONTEXT_LIMIT
+
+        def context_of(template: str) -> str:
+            try:
+                generate.inject_shared_print_css(template, template_name="menu.html")
+            except RuntimeError as exc:
+                match = re.search(r"marker (.*); markers must", str(exc), re.S)
+                assert match, f"unexpected error message shape: {exc}"
+                return ast.literal_eval(match.group(1))
+            raise AssertionError("expected RuntimeError for an unresolved marker")
+
+        unbounded = "/*SHARED_PRINT:" + "x" * (limit * 3)
+        bounded = context_of(f"<style>\n  {unbounded}\n</style>")
+        assert len(bounded) <= limit, (
+            f"the unterminated marker context ran {len(bounded)} chars, over "
+            f"the {limit}-char bound: one typo must not flood the build log"
+        )
+        before_newline = "/*SHARED_PRINT:" + "y" * 50
+        at_newline = context_of(f"<style>\n  {before_newline}\n  tail\n</style>")
+        assert at_newline == before_newline, (
+            "a newline inside the limit must end the context at the newline"
+        )
+        terminated = "/*SHARED_PRINT:" + "z" * 150 + "*/"
+        full = context_of(f"<style>\n  {terminated}\n</style>")
+        assert full == terminated, (
+            "a terminated marker keeps its full text as the error context"
+        )
 
 
 NODE_SCENARIOS = """
