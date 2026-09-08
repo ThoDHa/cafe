@@ -183,7 +183,7 @@ SHARED_PRINT_RULES = {
         "    .tagline { margin-top: 0.5rem; }"
     ),
     "footer": "    footer { margin-top: 1rem; padding-top: 0.5rem; }",
-    # The Print PDF link is a screen-only affordance: the PDF is the print
+    # The PDF View link is a screen-only affordance: the PDF is the print
     # path, so printing the HTML page must never show the link.
     "pdf-link": "    .pdf-link { display: none; }",
 }
@@ -278,12 +278,28 @@ def parse_menu(text: str) -> Menu:
 
 
 def render_pills(temperatures: list[str]) -> str:
-    pills = []
-    if "hot" in temperatures:
-        pills.append('<span class="tag nong">nóng</span>')
-    if "iced" in temperatures:
-        pills.append('<span class="tag da">đá</span>')
-    return f'<span class="tags">{"".join(pills)}</span>'
+    """Render the temperature pills as two fixed slots, nóng then đá.
+
+    An absent temperature leaves a reserved placeholder slot built like
+    its real pill (same text, padding, and border) so the box keeps the
+    pill's width; the template's .tag.slot rule paints it nothing. Both
+    pill columns therefore hold their x positions on every item.
+    """
+
+    def slot(css_class: str, label: str, present: bool) -> str:
+        if present:
+            return f'<span class="tag {css_class}">{label}</span>'
+        return (
+            f'<span class="tag slot {css_class}" aria-hidden="true">'
+            f"{label}</span>"
+        )
+
+    return (
+        '<span class="tags">'
+        + slot("nong", "nóng", "hot" in temperatures)
+        + slot("da", "đá", "iced" in temperatures)
+        + "</span>"
+    )
 
 
 def item_lead(item: Item) -> str:
@@ -336,7 +352,9 @@ def render_section(
 
     items = "\n".join(item_renderer(item) for item in section.items)
     opening = (
-        "  <section>" if css_class is None else f'  <section class="{css_class}">'
+        "  <section>"
+        if css_class is None
+        else f'  <section class="{html.escape(css_class)}">'
     )
     parts = [
         opening,

@@ -195,6 +195,11 @@
   .tag.nong { color: var(--seal); border: 1.5px solid var(--seal); background: #ECCDC9; }
   .tag.da   { color: var(--cobalt); border: 1.5px solid var(--cobalt); background: #C7CDD8; }
 
+  /* A pill type an item lacks leaves its slot reserved: the placeholder
+     keeps the pill's box (same text, padding, border) so the two pill
+     columns hold their x positions, while visibility paints it nothing. */
+  .tag.slot { visibility: hidden; }
+
   .item-vi {
     font-family: var(--names);
     font-style: italic;
@@ -313,7 +318,7 @@
       <a href="../bar.html">Bar</a>
     </nav>
     <p>CAFE ÔNG THỌ &middot; nhà làm &middot; made in house</p>
-    <a class="pdf-link" href="compact.pdf">Print PDF</a>
+    <a class="pdf-link" href="compact.pdf">PDF View</a>
   </footer>
 
 </div>

@@ -1234,6 +1234,40 @@ class TestRender:
         assert 'class="tag nong"' in page
         assert 'class="tag da"' in page
 
+    def test_render_places_pills_in_fixed_two_slot_order(self):
+        menu = generate.parse_menu(RECIPES_CAFE.read_text())
+        page = generate.render_menu_page(menu)
+        pill_items = sum(1 for s in menu.sections if s.show_pills for _ in s.items)
+        temperatures = {
+            t: sum(
+                1
+                for s in menu.sections
+                if s.show_pills
+                for i in s.items
+                if t in i.temperatures
+            )
+            for t in ("hot", "iced")
+        }
+        assert page.count('<span class="tag nong">') == temperatures["hot"]
+        assert page.count('<span class="tag da">') == temperatures["iced"]
+        assert (
+            page.count('<span class="tag slot nong" aria-hidden="true">')
+            == pill_items - temperatures["hot"]
+        ), "an absent nóng pill must leave a reserved placeholder slot"
+        assert (
+            page.count('<span class="tag slot da" aria-hidden="true">')
+            == pill_items - temperatures["iced"]
+        ), "an absent đá pill must leave a reserved placeholder slot"
+        openers = page.count('<span class="tags"><span class="tag nong">') + page.count(
+            '<span class="tags"><span class="tag slot nong"'
+        )
+        assert openers == pill_items, (
+            "every .tags container must open with the nóng slot: fixed order"
+        )
+        assert ".tag.slot { visibility: hidden; }" in page, (
+            "reserved slots must paint nothing"
+        )
+
     def test_print_page_break_is_tagged_on_mat_cha_in_menu_render_only(self):
         menu = generate.parse_menu(RECIPES_CAFE.read_text())
         menu_page = generate.render_menu_page(menu)
@@ -1249,6 +1283,17 @@ class TestRender:
         assert 'class="own-page"' not in generate.render_compact_page(menu), (
             "the compact render must never carry the print page break"
         )
+        assert (
+            'class="own-page"' not in generate.render_kitchen_page(real_kitchen_menu())
+        ), "the kitchen render must never carry the print page break"
+        assert (
+            'class="own-page"'
+            not in generate.render_bar_page(
+                menu_source.build_bar_items(
+                    COCKTAILS_MD.read_text(), generate.load_site_overrides()
+                )
+            )
+        ), "the bar render must never carry the print page break"
 
     def test_render_has_no_ordering_artifacts(self):
         menu = generate.parse_menu(RECIPES_CAFE.read_text())
@@ -1308,6 +1353,9 @@ class TestCompactRender:
             "Cà Phê Sữa",
             "class=\"tag nong\"",
             "class=\"tag da\"",
+            "class=\"tag slot nong\"",
+            "class=\"tag slot da\"",
+            ".tag.slot { visibility: hidden; }",
             "class=\"section-note\"",
             "bản rút gọn",
         ]:
@@ -1576,7 +1624,7 @@ class TestPrintPdf:
 
 
 class TestPrintPdfLink:
-    """Needles pinning the screen-only Print PDF link on the published pages."""
+    """Needles pinning the screen-only PDF View link on the published pages."""
 
     def _build(self, tmp_path):
         out = tmp_path / "public"
@@ -1599,7 +1647,7 @@ class TestPrintPdfLink:
         }
         for name, pdf in expected.items():
             page = (out / name).read_text()
-            assert f'<a class="pdf-link" href="{pdf}">Print PDF</a>' in page, name
+            assert f'<a class="pdf-link" href="{pdf}">PDF View</a>' in page, name
 
     def test_print_pdf_link_is_hidden_from_the_browser_print_css(self, tmp_path):
         out = self._build(tmp_path)
@@ -1607,7 +1655,7 @@ class TestPrintPdfLink:
             page = (out / name).read_text()
             print_css = self._print_css(page, name)
             assert ".pdf-link { display: none; }" in print_css, (
-                f"{name}: the Print PDF link is not hidden in print; printing "
+                f"{name}: the PDF View link is not hidden in print; printing "
                 "the HTML page must never show the link"
             )
 
@@ -1890,7 +1938,7 @@ class TestSharedPrintCss:
             f"the unterminated marker context ran {len(bounded)} chars, over "
             f"the {limit}-char bound: one typo must not flood the build log"
         )
-        before_newline = "/*SHARED_PRINT:" + "y" * 50
+        before_newline = "/*SHARED_PRINT:" + "y" * (limit // 2)
         at_newline = context_of(f"<style>\n  {before_newline}\n  tail\n</style>")
         assert at_newline == before_newline, (
             "a newline inside the limit must end the context at the newline"
