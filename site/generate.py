@@ -114,6 +114,9 @@ PRINT_FIT_STYLE_ID = "print-fit"
 PDF_PAPER = "a4"
 # The printed brand line lives in the page's own bottom margin band; the
 # in-flow footer is hidden so the last page does not carry the line twice.
+# The top band on continuation sheets shares it, so the literal is bound
+# once and substituted into the stylesheet below.
+BRAND_LINE = "CAFE ÔNG THỌ · nhà làm · made in house"
 PDF_ONLY_STYLESHEET = """
 footer { display: none; }
 /* The PDFs print on white stock (user direction 2026-09-07): every
@@ -144,9 +147,32 @@ header {
   background-size: 100% 1px, 100% 1px, 1px 100%, 1px 100% !important;
   background-repeat: no-repeat !important;
 }
+/* The continuation sheets' brand band: the footer band's brand line and
+   vocabulary, small, in the top margin band of every sheet, with its rule
+   on the content side mirroring the footer's. :first suppresses it where
+   the big plaque is the sheet's header. CSS paged media margin boxes are
+   unimplemented in the Chrome for Testing 153 shell make verify-print-chrome
+   pins, so this rides the PDF path only; the 0.6cm top margin is shared
+   with browser prints and stays unchanged. Revisit if Chrome ships them. */
+@page {
+  @top-center {
+    content: "__BRAND_LINE__";
+    font-family: 'Be Vietnam Pro', 'Segoe UI', system-ui, sans-serif;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #1F3564;
+    border-bottom: 1px solid #1F3564;
+    padding-bottom: 2px;
+    width: 100%;
+    vertical-align: bottom;
+  }
+}
+@page :first {
+  @top-center { content: none; }
+}
 @page {
   @bottom-center {
-    content: "CAFE ÔNG THỌ · nhà làm · made in house";
+    content: "__BRAND_LINE__";
     font-family: 'Be Vietnam Pro', 'Segoe UI', system-ui, sans-serif;
     font-size: 0.88rem;
     font-weight: 600;
@@ -165,20 +191,24 @@ header {
     background-repeat: no-repeat;
   }
 }
-"""
+""".replace("__BRAND_LINE__", BRAND_LINE)
 
 
-# The one copy of the print rules shared by every built page, defined
-# empirically as the rules byte-identical across all four templates after
-# 8520df6. Templates carry a /*SHARED_PRINT:<key>*/ marker exactly where
-# each entry's rules stood, and injection substitutes the entry verbatim
+# The one copy of the print rules shared by every built page: the entries
+# below are byte-identical across all four templates as they stand.
+# Templates carry a /*SHARED_PRINT:<key>*/ marker exactly where each
+# entry's rules stood, and injection substitutes the entry verbatim
 # (indentation included), so the built pages stay byte-identical to the
-# pre-injection build. Rules any page treats differently (`.card` padding,
-# `.drip`/`footer nav`/`footer a`/`.own-page`, the per-page type scales)
+# pre-injection build. The card entry unifies the print card padding at
+# 0.4cm by owner decision (2026-09-09, aligning plaque geometry across
+# menus); it superseded the per-page paddings 1.1cm/0.5cm bar, 0.3cm
+# compact, and 0.5cm kitchen. Rules any page still treats differently
+# (`.drip`/`footer nav`/`footer a`/`.own-page`, the per-page type scales)
 # remain in the templates.
 SHARED_PRINT_RULES = {
     "page": "  @page { margin: 0.6cm; margin-bottom: 1.2cm; }",
     "base": "    html, body { background: var(--sua); padding: 0; }",
+    "card": "    .card { max-width: none; border: none; box-shadow: none; padding: 0.4cm; }",
     # overflow: hidden keeps .section-head monolithic for print fragmentation
     # (css-break): Blink otherwise emits a pushed head's h2 text run in the
     # previous fragmentainer when its glyphs' ink crosses the page edge, which

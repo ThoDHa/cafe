@@ -1817,6 +1817,30 @@ class TestPrintPdf:
             "the ring strips must stay 1px thin"
         )
 
+    def test_pdf_only_stylesheet_brands_continuation_sheets(self):
+        css = generate.PDF_ONLY_STYLESHEET
+        assert css.count("@top-center") == 2, (
+            "the band needs the styled @top-center and the :first "
+            "suppression, exactly two occurrences"
+        )
+        assert css.count(f'content: "{generate.BRAND_LINE}"') == 2, (
+            "both margin boxes must carry the brand-line value; counting "
+            "selectors alone cannot catch a content regressed to empty"
+        )
+        assert "@page :first" in css and "content: none" in css, (
+            "first sheets carry the big plaque; the top band must be "
+            "suppressed there or sheet 1 reads the brand twice"
+        )
+        assert "border-bottom: 1px solid #1F3564" in css, (
+            "the band's rule sits below the text, on the content side of "
+            "the top margin band, mirroring the footer band's content-side "
+            "rule"
+        )
+        assert "font-size: 0.7rem" in css, (
+            "the band text must be the small size: the 0.6cm top margin "
+            "fits the band only well under the footer band's 0.88rem"
+        )
+
 
 class TestPrintPdfLink:
     """Needles pinning the screen-only PDF View link on the published pages.
@@ -1853,6 +1877,10 @@ class TestPrintPdfLink:
         for name in PUBLISHED_PAGES:
             page = (out / name).read_text()
             assert "@bottom-center" not in page, name
+            assert "@top-center" not in page, (
+                f"{name}: the continuation-sheet band belongs to the PDF "
+                "stylesheet only; browsers cannot render margin boxes"
+            )
             assert "footer { display: none" not in page, name
 
 
