@@ -1359,6 +1359,12 @@ class TestCompactRender:
             assert needle in page, f"missing {needle!r}"
 
 
+def print_css_of(page_html: str, name: str) -> str:
+    marker = "@media print {"
+    assert marker in page_html, f"{name}: carries no @media print block"
+    return page_html.split(marker, 1)[1].split("</style>", 1)[0]
+
+
 class TestBarRender:
     def _bar_items(self):
         return menu_source.build_bar_items(
@@ -1388,7 +1394,7 @@ class TestBarRender:
 
     def test_print_hides_footer_links_paragraph(self):
         page = generate.render_bar_page(self._bar_items())
-        print_block = page.split("@media print {", 1)[1]
+        print_block = print_css_of(page, "bar.html")
         assert "footer p + p { display: none; }" in print_block, (
             "the bar footer's second paragraph is only cross-page links; "
             "printed sheets have no use for them and the line tips the "
@@ -1748,6 +1754,35 @@ class TestPrintPdf:
         )
         assert "@bottom-center" in css
         assert "CAFE ÔNG THỌ · nhà làm · made in house" in css
+        assert "font-weight: 600" in css, (
+            "the margin-box brand line must carry weight 600 so it reads "
+            "thick on paper, matching the in-flow footer brand line"
+        )
+        assert "color: #1F3564" in css, (
+            "the margin-box brand line must be cobalt, matching the plaque"
+        )
+
+    def test_pdf_only_stylesheet_paints_the_margin_box_double_rule(self):
+        css = generate.PDF_ONLY_STYLESHEET
+        assert "border-top: 2px solid #1F3564" in css, (
+            "the @bottom-center margin box must carry the thick cobalt rule "
+            "above the brand line on every sheet"
+        )
+        assert (
+            "linear-gradient(to bottom, transparent 2px, #1F3564 2px)" in css
+        ), (
+            "the thin companion line must be a gradient strip: weasyprint 70 "
+            "paints only the first inset box-shadow of a stack, so the "
+            "plaque's shadow-ring pairing cannot produce a two-line rule"
+        )
+        assert "background-size: 100% 3px" in css, (
+            "the companion strip must stay 3px tall: 2px transparent gap "
+            "over the 1px cobalt line"
+        )
+        assert "width: 100%" in css, (
+            "the margin box must stretch to the full content width so the "
+            "rule spans the sheet like the HTML footer's rule spans the card"
+        )
 
     def test_pdf_only_stylesheet_paints_the_page_white(self):
         css = generate.PDF_ONLY_STYLESHEET
@@ -1764,6 +1799,24 @@ class TestPrintPdf:
             "survives as a warm band on the white plaque"
         )
 
+    def test_pdf_only_stylesheet_paints_the_plaque_ring(self):
+        css = generate.PDF_ONLY_STYLESHEET
+        assert css.count("linear-gradient(#1F3564 0 0)") == 4, (
+            "the PDF plaque ring must be four gradient strips: weasyprint "
+            "70 paints only the first inset box-shadow of a stack, so the "
+            "screen shadow ring cannot render on white stock"
+        )
+        assert (
+            "background-position: left 0 top 2px, left 0 bottom 2px, "
+            "left 2px top 0, right 2px top 0" in css
+        ), (
+            "the ring strips must sit at the 5px inset from the border's "
+            "outer edge that the plaque vocabulary uses"
+        )
+        assert "background-size: 100% 1px, 100% 1px, 1px 100%, 1px 100%" in css, (
+            "the ring strips must stay 1px thin"
+        )
+
 
 class TestPrintPdfLink:
     """Needles pinning the screen-only PDF View link on the published pages.
@@ -1771,11 +1824,6 @@ class TestPrintPdfLink:
     The page-backed needles share one build through the module-scoped
     `no_fit_build` fixture.
     """
-
-    def _print_css(self, page_html: str, name: str) -> str:
-        marker = "@media print {"
-        assert marker in page_html, f"{name}: carries no @media print block"
-        return page_html.split(marker, 1)[1].split("</style>", 1)[0]
 
     def test_every_published_page_links_its_print_pdf(self, no_fit_build):
         out = no_fit_build
@@ -1794,7 +1842,7 @@ class TestPrintPdfLink:
         out = no_fit_build
         for name in PUBLISHED_PAGES:
             page = (out / name).read_text()
-            print_css = self._print_css(page, name)
+            print_css = print_css_of(page, name)
             assert ".pdf-link { display: none; }" in print_css, (
                 f"{name}: the PDF View link is not hidden in print; printing "
                 "the HTML page must never show the link"
@@ -1867,6 +1915,13 @@ PUBLISHED_PAGES = (
     "bar.html",
 )
 
+# The companion strip is 3px tall inside the padding box; the print
+# padding-bottom must be at least this deep at every fitted root down to
+# the floor, or the strip underpaints the content box.
+STRIP_CLEARANCE_PX = 3
+# A whole .section-head rule body, in print blocks and screen stylesheets.
+SECTION_HEAD_RULE_RE = r"\.section-head \{[^}]*\}"
+
 
 @pytest.fixture(scope="module")
 def no_fit_build(tmp_path_factory) -> Path:
@@ -1906,15 +1961,10 @@ class TestSharedPrintCss:
     # this needle.
     WHOLE_PAGE_COUNTED_RULES = frozenset({"page"})
 
-    def _print_css(self, page_html: str, name: str) -> str:
-        marker = "@media print {"
-        assert marker in page_html, f"{name}: carries no @media print block"
-        return page_html.split(marker, 1)[1].split("</style>", 1)[0]
-
     def _count_shared_rule(self, page_html: str, name: str, key: str, css: str) -> int:
         if key in self.WHOLE_PAGE_COUNTED_RULES:
             return page_html.count(css)
-        return self._print_css(page_html, name).count(css)
+        return print_css_of(page_html, name).count(css)
 
     def test_every_built_page_carries_each_shared_print_rule(self, shared_print_pages):
         for name, page in shared_print_pages.items():
@@ -1947,7 +1997,7 @@ class TestSharedPrintCss:
         self, shared_print_pages
     ):
         for name, page in shared_print_pages.items():
-            print_css = self._print_css(page, name)
+            print_css = print_css_of(page, name)
             assert ".section-head { overflow: hidden; break-after: avoid; }" in print_css, (
                 f"{name}: .section-head is not monolithic in print; without "
                 "overflow: hidden Blink paints a pushed head's h2 glyphs as "
@@ -1957,7 +2007,7 @@ class TestSharedPrintCss:
 
     def test_no_built_page_declares_fixed_position_print_css(self, shared_print_pages):
         for name, page in shared_print_pages.items():
-            print_css = self._print_css(page, name)
+            print_css = print_css_of(page, name)
             assert "position: fixed" not in print_css, (
                 f"{name}: print CSS contains position: fixed; printed headers "
                 "and footers must stay in the page flow"
@@ -2034,4 +2084,139 @@ class TestSharedPrintCss:
         assert full == terminated, (
             "a terminated marker keeps its full text as the error context"
         )
+
+
+class TestSharedScreenCss:
+    """Needles pinning the shared screen CSS injected by read_template.
+
+    Mirrors TestSharedPrintCss for the screen vocabulary: the companion
+    strips, the footer brand rule, the item text treatment, and the engine
+    note are one copy in generate.py, substituted at /*SHARED_SCREEN:*/
+    markers on every built page. Screen rules cascade into print, so the
+    exactly-once counts are whole-page.
+    """
+
+    def test_every_built_page_carries_each_shared_screen_rule(
+        self, shared_print_pages
+    ):
+        for name, page in shared_print_pages.items():
+            for key, css in generate.SHARED_SCREEN_RULES.items():
+                count = page.count(css)
+                assert count == 1, (
+                    f"{name}: shared screen rule {key!r} appears {count} "
+                    "times; each shared screen rule must appear exactly once "
+                    "per page, or a duplicated copy doubles the rule's effect"
+                )
+
+    def test_unresolved_shared_screen_marker_fails_loudly(self):
+        template = "<style>\n  /*SHARED_SCREEN:headder*/\n</style>"
+        try:
+            generate.inject_shared_print_css(template, template_name="menu.html")
+        except RuntimeError as exc:
+            assert "headder" in str(exc)
+            assert "menu.html" in str(exc)
+        else:
+            raise AssertionError(
+                "expected RuntimeError for an unresolved SHARED_SCREEN marker"
+            )
+
+
+class TestPlaqueDoubleRule:
+    """Needles pinning the plaque-echo double rule on footers and section heads.
+
+    SITE-38: a thick cobalt line paired with a thin cobalt companion rides
+    every footer band and every section head, on all four pages, in screen
+    view, browser print, and the PDF margin band. The companion line is a
+    no-repeat 3px gradient strip inside the padding box because weasyprint
+    70 paints only the first inset box-shadow of a stack, so the plaque's
+    shadow-ring pairing cannot carry a two-line rule into the PDFs; browsers
+    render the same strip identically, and the transparent gap shows the
+    surface behind it, so the white PDF stock needs no recolor override.
+    """
+
+    SECTION_HEAD_GEOMETRY = (
+        "background-image: linear-gradient(to top, transparent 2px, var(--cobalt) 2px);\n"
+        "    background-position: left bottom;\n"
+        "    background-size: 100% 3px;\n"
+        "    background-repeat: no-repeat;"
+    )
+    FOOTER_GEOMETRY = (
+        "background-image: linear-gradient(to bottom, transparent 2px, var(--cobalt) 2px);\n"
+        "    background-position: left top;\n"
+        "    background-size: 100% 3px;\n"
+        "    background-repeat: no-repeat;"
+    )
+
+    def test_every_page_keeps_the_companion_strip_geometry(self, no_fit_build):
+        for name in PUBLISHED_PAGES:
+            page = (no_fit_build / name).read_text()
+            assert self.SECTION_HEAD_GEOMETRY in page, (
+                f"{name}: the section-head companion strip must be a 3px "
+                "no-repeat strip anchored above the border: 2px gap, 1px line"
+            )
+            assert self.FOOTER_GEOMETRY in page, (
+                f"{name}: the footer companion strip must be a 3px no-repeat "
+                "strip anchored below the border: 2px gap, 1px line"
+            )
+
+    def test_every_page_brands_the_footer_line_cobalt_600(self, no_fit_build):
+        for name in PUBLISHED_PAGES:
+            page = (no_fit_build / name).read_text()
+            assert 'class="footer-brand"' in page, (
+                f"{name}: the footer brand line is untagged; the weight and "
+                "color treatment needs its hook"
+            )
+            assert (
+                ".footer-brand { color: var(--cobalt); font-weight: 600; }" in page
+            ), f"{name}: the footer brand line must render cobalt at weight 600"
+
+    def test_print_keeps_the_companion_strips_through_background_stripping(
+        self, shared_print_pages
+    ):
+        for name, page in shared_print_pages.items():
+            print_css = print_css_of(page, name)
+            assert ".seal, .tag, .section-head, footer {" in print_css, (
+                f"{name}: print's print-color-adjust: exact rule must cover "
+                ".section-head and footer or a browser's default background "
+                "stripping drops the gradient companion lines from prints"
+            )
+
+    def test_print_section_head_padding_clears_the_companion_strip(
+        self, shared_print_pages
+    ):
+        for name, page in shared_print_pages.items():
+            print_rules = re.findall(
+                SECTION_HEAD_RULE_RE, print_css_of(page, name)
+            )
+            declared = [rule for rule in print_rules if "padding-bottom:" in rule]
+            if declared:
+                source = declared[-1]
+            else:
+                screen_css = page.split("@media print {", 1)[0]
+                screen_declared = [
+                    rule
+                    for rule in re.findall(SECTION_HEAD_RULE_RE, screen_css)
+                    if "padding-bottom:" in rule
+                ]
+                assert screen_declared, (
+                    f"{name}: no .section-head padding-bottom in the print "
+                    "block or the screen stylesheet; the companion strip "
+                    "clearance has no guard"
+                )
+                source = screen_declared[-1]
+            padding = re.search(r"padding-bottom: ([\d.]+)(px|rem)", source)
+            assert padding is not None, (
+                f"{name}: no .section-head padding-bottom guards the strip "
+                "clearance"
+            )
+            value = float(padding[1])
+            clearance = (
+                value if padding[2] == "px" else value * generate.PRINT_ROOT_FLOOR
+            )
+            assert clearance >= STRIP_CLEARANCE_PX, (
+                f"{name}: print .section-head padding-bottom {padding[0]} "
+                f"underpaints the content box at the "
+                f"{generate.PRINT_ROOT_FLOOR:g}px print floor; the 3px "
+                f"companion strip needs {STRIP_CLEARANCE_PX}px of clearance"
+            )
 

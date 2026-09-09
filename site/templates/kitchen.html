@@ -104,6 +104,7 @@
 
   section { margin-top: clamp(2.25rem, 6vw, 3.25rem); }
 
+/*SHARED_SCREEN:strip-note*/
   .section-head {
     display: flex;
     align-items: baseline;
@@ -111,6 +112,7 @@
     border-bottom: 2px solid var(--cobalt);
     padding-bottom: 0.4rem;
     margin-bottom: 0.35rem;
+/*SHARED_SCREEN:section-head-strip*/
   }
 
   h2 {
@@ -135,7 +137,6 @@
   .section-note {
     margin: 0.5rem 0 1.25rem;
     font-size: 0.88rem;
-    color: var(--ink-muted);
     font-style: italic;
     font-family: var(--names);
   }
@@ -196,9 +197,10 @@
   .item-desc {
     margin: 0.25rem 0 0;
     font-size: 0.88rem;
-    color: var(--ink-muted);
     max-width: 34ch;
   }
+
+/*SHARED_SCREEN:item-text*/
 
   /* ---------- phin-drip divider ---------- */
 
@@ -230,9 +232,12 @@
     text-align: center;
     font-size: 0.88rem;
     color: var(--ink-muted);
+/*SHARED_SCREEN:footer-strip*/
   }
 
   footer p { margin: 0.3rem 0; }
+
+/*SHARED_SCREEN:footer-brand*/
 
   footer a {
     color: var(--cobalt);
@@ -300,7 +305,7 @@
 <!--SECTIONS-->
 
   <footer>
-    <p>nhà làm &middot; made in house</p>
+    <p class="footer-brand">nhà làm &middot; made in house</p>
     <p><a href="menu.html">The Drink Menu</a> &middot; <a href="bar.html">The Bar Menu</a></p>
     <a class="pdf-link" href="kitchen.pdf">PDF View</a>
   </footer>

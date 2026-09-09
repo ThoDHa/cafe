@@ -119,22 +119,50 @@ footer { display: none; }
 /* The PDFs print on white stock (user direction 2026-09-07): every
    page-level surface the HTML print CSS paints cream is neutralized to
    white here, so this sheet reaches the PDF artifacts only and the HTML
-   print preview keeps the cream design. The header rule also recolors the
-   plaque's cream inset ring, which would otherwise survive as a warm band
-   on the white plaque. Ink (text, seal, borders, pills, the margin-box
-   brand line) is left untouched. The !important flags are a weasyprint 69
-   requirement, not emphasis: it applies render()-passed author stylesheets
-   BEFORE the page's own <style> sheets, so equal-specificity declarations
-   from this sheet lose; important declarations win the cascade instead. */
+   print preview keeps the cream design. The header rules below also paint
+   the plaque's cream first inset shadow white, which would otherwise
+   survive as a warm band on the white plaque. Ink (text, seal, borders,
+   pills, the margin-box brand line) is left untouched. The !important
+   flags are a weasyprint 69 requirement, not emphasis: it applies
+   render()-passed author stylesheets BEFORE the page's own <style> sheets,
+   so equal-specificity declarations from this sheet lose; important
+   declarations win the cascade instead. */
 html, body { background: #fff !important; }
 .card, header { background: #fff !important; }
+/* Suppresses the template header's cream first inset shadow: white on
+   white renders as nothing. */
 header { box-shadow: inset 0 0 0 4px #fff, inset 0 0 0 5px #1F3564 !important; }
+/* The inner cobalt ring the screen plaque draws with a second inset
+   box-shadow: weasyprint 70 paints only the first shadow of a stack, so
+   the ring rides four single-stop gradient strips at the 5px inset from
+   the border's outer edge instead. Declared after the background shorthand
+   above so the later !important longhand wins the cascade. Revisit if
+   weasyprint paints shadow stacks. */
+header {
+  background-image: linear-gradient(#1F3564 0 0), linear-gradient(#1F3564 0 0), linear-gradient(#1F3564 0 0), linear-gradient(#1F3564 0 0) !important;
+  background-position: left 0 top 2px, left 0 bottom 2px, left 2px top 0, right 2px top 0 !important;
+  background-size: 100% 1px, 100% 1px, 1px 100%, 1px 100% !important;
+  background-repeat: no-repeat !important;
+}
 @page {
   @bottom-center {
     content: "CAFE ÔNG THỌ · nhà làm · made in house";
     font-family: 'Be Vietnam Pro', 'Segoe UI', system-ui, sans-serif;
     font-size: 0.88rem;
-    color: #56513F;
+    font-weight: 600;
+    color: #1F3564;
+    /* Plaque-echo double rule above the brand line: 2px border, 2px
+       transparent gap, 1px companion strip. The companion rides a gradient
+       because weasyprint 70 paints only the first inset box-shadow of a
+       stack. Revisit if weasyprint paints shadow stacks. */
+    border-top: 2px solid #1F3564;
+    padding-top: 5px;
+    width: 100%;
+    vertical-align: top;
+    background-image: linear-gradient(to bottom, transparent 2px, #1F3564 2px);
+    background-position: left top;
+    background-size: 100% 3px;
+    background-repeat: no-repeat;
   }
 }
 """
@@ -164,7 +192,7 @@ SHARED_PRINT_RULES = {
         "    .section-head { overflow: hidden; break-after: avoid; }"
     ),
     "color": (
-        "    .seal, .tag {\n"
+        "    .seal, .tag, .section-head, footer {\n"
         "      print-color-adjust: exact;\n"
         "      -webkit-print-color-adjust: exact;\n"
         "    }"
@@ -180,6 +208,39 @@ SHARED_PRINT_RULES = {
     # The PDF View link is a screen-only affordance: the PDF is the print
     # path, so printing the HTML page must never show the link.
     "pdf-link": "    .pdf-link { display: none; }",
+}
+
+# The screen twin of SHARED_PRINT_RULES: the screen vocabulary shared
+# byte-identical by every built page, substituted verbatim at
+# /*SHARED_SCREEN:<key>*/ markers exactly where each entry's rules stand.
+# Screen rules cascade into the print and PDF paths, so one copy carries
+# all three render paths. Anything a page treats differently (the per-page
+# type scales, the .section-head paddings) stays in the templates.
+SHARED_SCREEN_RULES = {
+    "strip-note": (
+        "  /* The thin companion line rides a gradient strip, not the plaque's\n"
+        "     second inset box-shadow: weasyprint 70 paints only the first shadow\n"
+        "     of a stack. Revisit if weasyprint paints shadow stacks. */"
+    ),
+    "section-head-strip": (
+        "    background-image: linear-gradient(to top, transparent 2px, var(--cobalt) 2px);\n"
+        "    background-position: left bottom;\n"
+        "    background-size: 100% 3px;\n"
+        "    background-repeat: no-repeat;"
+    ),
+    "footer-strip": (
+        "    background-image: linear-gradient(to bottom, transparent 2px, var(--cobalt) 2px);\n"
+        "    background-position: left top;\n"
+        "    background-size: 100% 3px;\n"
+        "    background-repeat: no-repeat;"
+    ),
+    "footer-brand": (
+        "  .footer-brand { color: var(--cobalt); font-weight: 600; }"
+    ),
+    "item-text": (
+        "  .item-vi, .item-desc { font-weight: 500; }\n"
+        "  .item-desc, .section-note { color: var(--ink); }"
+    ),
 }
 
 # An unterminated /*SHARED_PRINT marker leaves the whole template remainder
@@ -371,16 +432,20 @@ def render_section(
 
 
 def inject_shared_print_css(page_html: str, template_name: str) -> str:
-    """Substitute the template's shared-print markers with the shared rules.
+    """Substitute the template's shared-print and shared-screen markers.
 
-    A marker that names no SHARED_PRINT_RULES entry would silently drop
-    shared print CSS from the built page (the leftover text is a legal CSS
-    comment), so an unresolved marker fails the build instead.
+    A marker that names no shared entry would silently drop shared CSS from
+    the built page (the leftover text is a legal CSS comment), so an
+    unresolved marker fails the build instead.
     """
 
-    for key, css in SHARED_PRINT_RULES.items():
-        page_html = page_html.replace(f"/*SHARED_PRINT:{key}*/", css)
-    start = page_html.find("/*SHARED_PRINT")
+    for rules, prefix in (
+        (SHARED_PRINT_RULES, "SHARED_PRINT"),
+        (SHARED_SCREEN_RULES, "SHARED_SCREEN"),
+    ):
+        for key, css in rules.items():
+            page_html = page_html.replace(f"/*{prefix}:{key}*/", css)
+    start = page_html.find("/*SHARED_")
     if start != -1:
         end = page_html.find("*/", start)
         if end == -1:
@@ -392,8 +457,9 @@ def inject_shared_print_css(page_html: str, template_name: str) -> str:
         else:
             leftover = page_html[start : end + 2]
         raise RuntimeError(
-            f"{template_name}: unresolved shared print CSS marker "
-            f"{leftover!r}; markers must name a SHARED_PRINT_RULES entry"
+            f"{template_name}: unresolved shared CSS marker "
+            f"{leftover!r}; markers must name a SHARED_PRINT_RULES or "
+            "SHARED_SCREEN_RULES entry"
         )
     return page_html
 
