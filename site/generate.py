@@ -9,18 +9,22 @@ deploy with no generator change. The bar menu is generated the same way
 from recipes/cocktails.md: the template families become the COCKTAILS
 section, with curated copy in site/menu-overrides.json. The kitchen menu
 is generated from the recipes README index over the dish files, with the
-same overrides file holding the curated names, merges, and copy. This
-module keeps only the site's own concerns: section blurbs, templates,
-rendering, and the print-budget fit.
+same overrides file holding the curated names, merges, and copy. The
+pantry page is generated from recipes/cafe_pantry.md: the `##` buying
+groups become sections under curated Vietnamese leads held here, and each
+bullet's buy spec rides the item's subtitle slot. This module keeps only
+the site's own concerns: section blurbs, templates, rendering, and the
+print-budget fit.
 
 Usage: uv run --with weasyprint python site/generate.py [--recipes PATH] [--out DIR]
 
 The build also enforces print budgets: weasyprint renders each page and the
-print root font size steps down until the drinks and kitchen pages fit two
-A4 and Letter pages and the compact and bar pages fit one, failing the build
-if the 11px floor cannot satisfy the budget. The same pass renders each menu
-to a print-ready PDF next to its HTML (menu.pdf, menu/compact.pdf, bar.pdf,
-kitchen.pdf): the PDF carries the brand line in an @page bottom margin box
+print root font size steps down until the drinks, kitchen, and pantry pages
+fit two A4 and Letter pages and the compact and bar pages fit one, failing
+the build if the 11px floor cannot satisfy the budget. The same pass renders
+each menu to a print-ready PDF next to its HTML (menu.pdf, menu/compact.pdf,
+bar.pdf, kitchen.pdf, pantry.pdf): the PDF carries the brand line in an
+@page bottom margin box
 on every page, which browsers cannot do in their print preview, so the PDF
 is the print path. Pass --no-fit-pages to skip this pass (used by fast
 artifact tests). The build-injected fit always applies: every browser
@@ -59,12 +63,15 @@ from menu_source import (  # noqa: E402,F401
     HEADING_RE,
     Item,
     KitchenMenu,
+    PantryMenu,
+    PantrySection,
     SECTION_MAP,
     TEMPERATURE_OVERRIDES,
     UnmappedSectionError,
     VIETNAMESE_NAME_OVERRIDES,
     build_bar_items,
     build_kitchen_menu,
+    parse_pantry,
     strip_markdown,
 )
 
@@ -73,6 +80,9 @@ COMPACT_PAGE_BUDGET = 1
 # Bar prints as one page by user directive (2026-09-05 review); it fits the
 # default 16px root already, so this budget only guards against drift.
 BAR_PAGE_BUDGET = 1
+# The pantry page is a dense buying list; like the kitchen menu it is
+# allowed to spill past one sheet, so it answers to the two-page budget.
+PANTRY_PAGE_BUDGET = 2
 # The print PDF of each page answers to the same page budget as the HTML
 # print: the fit pass guarantees it at the fitted root, and the render gate
 # below fails the build loudly if the artifact ever drifts over budget.
@@ -81,6 +91,7 @@ PDF_PAGE_BUDGETS = {
     "menu/compact.pdf": COMPACT_PAGE_BUDGET,
     "bar.pdf": BAR_PAGE_BUDGET,
     "kitchen.pdf": PRINT_PAGE_BUDGET,
+    "pantry.pdf": PANTRY_PAGE_BUDGET,
 }
 PRINT_ROOT_DEFAULT = 16.0
 PRINT_ROOT_FLOOR = 11.0
@@ -104,6 +115,7 @@ PRINT_HEADROOM_STEPS = {
     "menu/compact.html": 2,
     "bar.html": 1,
     "kitchen.html": 1,
+    "pantry.html": 1,
 }
 PAPER_SIZES = ("a4", "letter")
 PRINT_FIT_SEARCH_SIZE = "letter"
@@ -578,6 +590,15 @@ def render_bar_page(items: list[Item]) -> str:
     return template.replace("<!--ITEMS-->", items_html)
 
 
+# The phin-drip divider rendered between a multi-section page's sections
+# (kitchen, pantry); the templates hide it in print.
+DRIP_DIVIDER = (
+    "\n\n"
+    '  <div class="drip" aria-hidden="true">'
+    "<span></span><span></span><span></span></div>\n\n"
+)
+
+
 def render_kitchen_page(kitchen: KitchenMenu) -> str:
     """Render the kitchen page with the design reference's exact formatting.
 
@@ -603,15 +624,73 @@ def render_kitchen_page(kitchen: KitchenMenu) -> str:
         return "\n".join(parts)
 
     template = read_template("kitchen.html")
-    drip = (
-        "\n\n"
-        '  <div class="drip" aria-hidden="true">'
-        "<span></span><span></span><span></span></div>\n\n"
-    )
-    sections_html = drip.join(
+    sections_html = DRIP_DIVIDER.join(
         render_section(section, render_kitchen_item) for section in kitchen.sections
     )
     return template.replace("<!--SECTIONS-->", sections_html)
+
+
+def render_pantry_item(item: Item) -> str:
+    parts = [
+        '      <div class="item">',
+        '        <div class="item-line">',
+        f'          <span class="item-name">{html.escape(item.name_en)}</span>',
+        "        </div>",
+    ]
+    if item.name_vi:
+        parts.append(f'        <p class="item-vi">{html.escape(item.name_vi)}</p>')
+    if item.description:
+        parts.append(
+            f'        <p class="item-desc">{html.escape(item.description)}</p>'
+        )
+    parts.append("      </div>")
+    return "\n".join(parts)
+
+
+def render_pantry_section(section: PantrySection) -> str:
+    parts = [
+        "  <section>",
+        '    <div class="section-head">',
+        f"      <h2>{html.escape(section.title_lead.upper())}</h2>",
+    ]
+    if section.title_label:
+        parts.append(
+            f'      <span class="section-en">{html.escape(section.title_label)}</span>'
+        )
+    parts.append("    </div>")
+    if section.note:
+        parts.append(f'    <p class="section-note">{html.escape(section.note)}</p>')
+    items = "\n".join(render_pantry_item(item) for item in section.items)
+    parts.extend(
+        [
+            f"    {items_open_tag(len(section.items), columns=2)}",
+            items,
+            "    </div>",
+            "  </section>",
+        ]
+    )
+    return "\n".join(parts)
+
+
+def render_pantry_page(pantry: PantryMenu) -> str:
+    """Render the pantry page: the bar's single-list chrome at the
+    kitchen's print density, with the page's intro and outro paragraphs
+    as page notes around the drip-separated sections."""
+
+    def page_note(text: str | None) -> str:
+        if not text:
+            return ""
+        return f'  <p class="page-note">{html.escape(text)}</p>'
+
+    template = read_template("pantry.html")
+    sections_html = DRIP_DIVIDER.join(
+        render_pantry_section(section) for section in pantry.sections
+    )
+    return (
+        template.replace("<!--INTRO-->", page_note(pantry.intro))
+        .replace("<!--SECTIONS-->", sections_html)
+        .replace("<!--OUTRO-->", page_note(pantry.outro))
+    )
 
 
 def inject_print_root(page_html: str, root_px: float) -> str:
@@ -856,6 +935,26 @@ def build_site(
         )
         fitted.append(("kitchen.html", kitchen_root))
     (out_dir / "kitchen.html").write_text(kitchen_page)
+    pantry_path = recipes_path.parent / "cafe_pantry.md"
+    if not pantry_path.is_file():
+        raise RuntimeError(
+            f"missing {pantry_path}; the pantry page is generated from it"
+        )
+    pantry = parse_pantry(pantry_path.read_text())
+    print(
+        f"pantry: {sum(len(s.items) for s in pantry.sections)} items "
+        f"from {pantry_path.name}"
+    )
+    pantry_page = render_pantry_page(pantry)
+    if fit_pages:
+        pantry_page, pantry_root = fit_print_root(
+            pantry_page,
+            label="pantry.html",
+            max_pages=PANTRY_PAGE_BUDGET,
+            headroom_steps=PRINT_HEADROOM_STEPS["pantry.html"],
+        )
+        fitted.append(("pantry.html", pantry_root))
+    (out_dir / "pantry.html").write_text(pantry_page)
     if fit_pages:
         # The PDF artifact renders from the final built HTML (the
         # fit-injected root included), so it paginates exactly like the
@@ -867,6 +966,7 @@ def build_site(
             ("menu/compact.pdf", compact_page),
             ("bar.pdf", bar_page),
             ("kitchen.pdf", kitchen_page),
+            ("pantry.pdf", pantry_page),
         ):
             write_print_pdf(
                 page_html,

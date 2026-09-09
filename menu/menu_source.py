@@ -120,6 +120,22 @@ KITCHEN_SECTION_OVERRIDE_KEYS = frozenset({"note"})
 
 KITCHEN_CONFIG_KEYS = frozenset({"items", "merges", "sections", "order"})
 
+# Pantry section leads: curated short Vietnamese display leads keyed by the
+# recipes cafe_pantry.md `##` titles. An unmapped `##` section falls back to
+# its English title as the lead and ships no label: a new pantry group
+# appears on the page with no registration and no curated title, while a
+# group whose title cannot yield an ASCII slug fails the build loudly via
+# slugify.
+PANTRY_SECTION_TITLES = {
+    "Fresh Dairy and Produce": "Sữa & Trái Cây",
+    "Shelf-Stable Pantry": "Đồ Khô",
+    "Make-Ahead Staples": "Làm Sẵn",
+}
+
+# A trailing "(...)" on a pantry bullet's name is the buy spec ("Heavy
+# whipping cream (pint carton)"); it moves to the item's subtitle slot.
+PANTRY_ANNOTATION_RE = re.compile(r"^(.*?)\s*\(([^()]*)\)$")
+
 SERVE_CUE_PARAGRAPHS = {
     "served hot or iced",
     "hot or iced",
@@ -475,6 +491,141 @@ def build_bar_items(text: str, config: dict) -> list[Item]:
             )
         )
     return items
+
+
+def _pantry_prose(lines: list[str]) -> str | None:
+    """Join accumulated paragraph lines into one cleaned string, or None."""
+    if not lines:
+        return None
+    return strip_markdown(" ".join(lines)) or None
+
+
+def parse_pantry_item(bullet_text: str) -> Item:
+    """Map one pantry bullet's text (after "- ") onto an Item.
+
+    The text splits on the first ": ": the part before is the name and the
+    part after, when the separator is found, is the description. A trailing
+    parenthetical (PANTRY_ANNOTATION_RE) moves from the name into name_vi,
+    the pages' subtitle slot, the same reuse the kitchen makes for English
+    subtitles: "Heavy whipping cream (pint carton)" carries name_en "Heavy
+    whipping cream" and name_vi "pint carton"; an empty annotation yields
+    None. Both parts strip markdown, so the make-ahead bullets named by a
+    link keep their display text and link-laden description prose lands
+    clean. Temperatures are meaningless on a buying list and stay empty.
+    """
+    name_part, separator, description_part = bullet_text.partition(": ")
+    name = strip_markdown(name_part)
+    name_vi: str | None = None
+    annotation = PANTRY_ANNOTATION_RE.match(name)
+    if annotation and annotation.group(2).strip():
+        name, name_vi = annotation.group(1), annotation.group(2).strip()
+    return Item(
+        name_en=name,
+        name_vi=name_vi,
+        description=strip_markdown(description_part) if separator else None,
+        temperatures=[],
+    )
+
+
+@dataclass
+class PantrySection:
+    """One `##` buying group of the recipes cafe_pantry.md."""
+
+    id: str
+    title_lead: str
+    title_label: str | None
+    note: str | None = None
+    items: list[Item] = field(default_factory=list)
+
+
+@dataclass
+class PantryMenu:
+    intro: str | None
+    outro: str | None
+    sections: list[PantrySection] = field(default_factory=list)
+
+
+def parse_pantry(text: str) -> PantryMenu:
+    """Parse the recipes cafe_pantry.md shopping list into the pantry page.
+
+    Every `##` heading becomes a section in file order and every column-0
+    `- ` bullet under it becomes an Item. The section id is the slug of the
+    source (English) title; a title in PANTRY_SECTION_TITLES renders its
+    curated Vietnamese lead with the English title as the label, and any
+    other `##` falls back to the English title as the lead with no label,
+    so a pantry group the recipes add later is picked up with no
+    registration. Paragraphs under a heading before its first bullet become
+    the section's note; paragraphs before the first `##` (skipping the `# `
+    document title) become the page intro, with a column-0 `- ` bullet in
+    that zone rejected loudly instead, since bullets must live inside a
+    `##` section; the final section's trailing paragraphs become the page
+    outro, and any other section's trailing paragraphs fold into that
+    section's note. Indented bullets are never items or copy, and table
+    lines are skipped inside sections, though intro-zone table lines fold
+    into the intro prose; deeper headings (###+) are structural and
+    dropped while their content lines stay as paragraphs.
+    split_top_sections is unsuitable here because it loses line
+    indentation and merges nested bullets, so the lines are parsed
+    directly instead.
+    """
+    intro_lines: list[str] = []
+    sections: list[PantrySection] = []
+    note_lines_by_section: list[list[str]] = []
+    trailing_lines_by_section: list[list[str]] = []
+    for line in text.splitlines():
+        heading = HEADING_RE.match(line)
+        if heading:
+            if len(heading.group(1)) == 2:
+                title = heading.group(2).strip()
+                sections.append(
+                    PantrySection(
+                        id=slugify(title),
+                        title_lead=PANTRY_SECTION_TITLES.get(title, title),
+                        title_label=(
+                            title if title in PANTRY_SECTION_TITLES else None
+                        ),
+                    )
+                )
+                note_lines_by_section.append([])
+                trailing_lines_by_section.append([])
+            continue
+        if line.startswith("# "):
+            continue
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if not sections:
+            if line.startswith("- "):
+                raise ValueError(
+                    f"pantry bullet {stripped!r} appears before the first "
+                    "`##` section; pantry bullets must live inside a `##` "
+                    "section of cafe_pantry.md"
+                )
+            if stripped.startswith("- "):
+                continue
+            intro_lines.append(stripped)
+            continue
+        if line.startswith("- "):
+            sections[-1].items.append(parse_pantry_item(line[2:]))
+            continue
+        if stripped.startswith("- ") or stripped.startswith("|"):
+            continue
+        if sections[-1].items:
+            trailing_lines_by_section[-1].append(stripped)
+        else:
+            note_lines_by_section[-1].append(stripped)
+    outro: str | None = None
+    for index, section in enumerate(sections):
+        if index == len(sections) - 1:
+            outro = _pantry_prose(trailing_lines_by_section[index])
+        else:
+            note_lines_by_section[index].extend(trailing_lines_by_section[index])
+        section.note = _pantry_prose(note_lines_by_section[index])
+    return PantryMenu(
+        intro=_pantry_prose(intro_lines),
+        outro=outro,
+        sections=sections,
+    )
 
 
 @dataclass

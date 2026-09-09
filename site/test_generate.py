@@ -18,6 +18,7 @@ RECIPES_CAFE = Path(
     os.environ.get("RECIPES_CAFE", REPO_ROOT.parent / "recipes" / "cafe.md")
 )
 COCKTAILS_MD = RECIPES_CAFE.parent / "cocktails.md"
+CAFE_PANTRY_MD = RECIPES_CAFE.parent / "cafe_pantry.md"
 MENU_JSON = REPO_ROOT / "menu" / "menu.json"
 
 sys.path.insert(0, str(SITE_DIR))
@@ -1208,6 +1209,192 @@ class TestRealKitchenFile:
         )
 
 
+PANTRY_FIXTURE = textwrap.dedent(
+    """
+    # Cafe Pantry Fixture
+
+    Everything to buy for the [Cafe Ong Tho](cafe.md) menu: quantities are
+    per batch or per single serving, as marked.
+
+    ## Fresh Dairy and Produce
+
+    The cold case: buy these fresh each week.
+
+    - Heavy whipping cream (pint carton): the backbone of every [cold foam](cafe.md#cold-foams)
+    - Whole milk: the undertows and every milk tea
+    - Turbinado sugar
+      - the coarse golden cane sugar, not white sugar
+
+    ## Make-Ahead Staples
+
+    - [20% Saline Solution](cafe.md#20-saline-solution): 100g batch from 20g salt + 80g water
+
+    Ice is assumed on hand: serving a drink over ice turns it into its iced version.
+    """
+)
+
+
+def parsed_pantry_fixture():
+    return menu_source.parse_pantry(PANTRY_FIXTURE)
+
+
+class TestPantryParser:
+    def test_sections_parse_in_file_order_with_slug_ids(self):
+        pantry = parsed_pantry_fixture()
+        assert [s.id for s in pantry.sections] == [
+            "fresh-dairy-and-produce",
+            "make-ahead-staples",
+        ]
+
+    def test_intro_is_parsed_with_links_stripped(self):
+        pantry = parsed_pantry_fixture()
+        assert pantry.intro == (
+            "Everything to buy for the Cafe Ong Tho menu: quantities are "
+            "per batch or per single serving, as marked."
+        )
+        assert "[" not in pantry.intro
+
+    def test_column_zero_bullet_before_the_first_section_fails_loudly(self):
+        stray = PANTRY_FIXTURE.replace(
+            "## Fresh Dairy and Produce",
+            "- Stray bulk flour bag\n\n## Fresh Dairy and Produce",
+        )
+        try:
+            menu_source.parse_pantry(stray)
+        except ValueError as exc:
+            assert "Stray bulk flour bag" in str(exc)
+            assert "##" in str(exc)
+        else:
+            raise AssertionError(
+                "expected ValueError for a pantry bullet before the first section"
+            )
+
+    def test_indented_bullet_in_the_intro_zone_is_ignored(self):
+        stray = PANTRY_FIXTURE.replace(
+            "## Fresh Dairy and Produce",
+            "  - a nested note before any section\n\n## Fresh Dairy and Produce",
+        )
+        pantry = menu_source.parse_pantry(stray)
+        assert "a nested note before any section" not in pantry.intro
+
+    def test_annotated_bullet_moves_the_parenthetical_to_the_subtitle(self):
+        pantry = parsed_pantry_fixture()
+        item = pantry.sections[0].items[0]
+        assert item.name_en == "Heavy whipping cream"
+        assert item.name_vi == "pint carton"
+        assert item.description == "the backbone of every cold foam"
+
+    def test_bullet_without_annotation_keeps_the_subtitle_none(self):
+        pantry = parsed_pantry_fixture()
+        item = pantry.sections[0].items[1]
+        assert item.name_en == "Whole milk"
+        assert item.name_vi is None
+        assert item.description == "the undertows and every milk tea"
+
+    def test_bullet_without_description_yields_none(self):
+        pantry = parsed_pantry_fixture()
+        item = pantry.sections[0].items[2]
+        assert item.name_en == "Turbinado sugar"
+        assert item.description is None
+
+    def test_link_named_bullet_keeps_only_the_display_text(self):
+        pantry = parsed_pantry_fixture()
+        item = pantry.sections[1].items[0]
+        assert item.name_en == "20% Saline Solution"
+        assert item.description == "100g batch from 20g salt + 80g water"
+
+    def test_section_note_is_parsed_from_leading_paragraph(self):
+        pantry = parsed_pantry_fixture()
+        assert pantry.sections[0].note == "The cold case: buy these fresh each week."
+        assert pantry.sections[1].note is None
+
+    def test_final_section_trailing_paragraph_becomes_the_outro(self):
+        pantry = parsed_pantry_fixture()
+        assert pantry.outro == (
+            "Ice is assumed on hand: serving a drink over ice turns it into "
+            "its iced version."
+        )
+
+    def test_indented_nested_bullet_is_not_an_item(self):
+        pantry = parsed_pantry_fixture()
+        names = [i.name_en for s in pantry.sections for i in s.items]
+        assert "the coarse golden cane sugar, not white sugar" not in names
+        assert len(pantry.sections[0].items) == 3
+
+    def test_pantry_bullets_carry_no_temperatures(self):
+        pantry = parsed_pantry_fixture()
+        assert all(
+            i.temperatures == [] for s in pantry.sections for i in s.items
+        )
+
+    def test_brand_new_section_is_picked_up_with_english_lead_and_no_label(self):
+        new_group = textwrap.dedent(
+            """
+            ## Brand New Group Never Seen Before
+
+            A group added to the pantry file after the generator was written.
+
+            - Something new (one bag)
+
+            """
+        ).lstrip("\n")
+        fixture = PANTRY_FIXTURE.replace(
+            "## Make-Ahead Staples", new_group + "## Make-Ahead Staples"
+        )
+        pantry = menu_source.parse_pantry(fixture)
+        new_section = pantry.sections[1]
+        assert new_section.title_lead == "Brand New Group Never Seen Before"
+        assert new_section.title_label is None
+        assert new_section.items[0].name_en == "Something new"
+        assert new_section.items[0].name_vi == "one bag"
+
+
+class TestRealPantryFile:
+    def test_real_file_exists(self):
+        assert CAFE_PANTRY_MD.is_file(), "cafe_pantry.md missing beside recipes cafe.md"
+
+    def test_real_sections_and_minimum_counts(self):
+        pantry = menu_source.parse_pantry(CAFE_PANTRY_MD.read_text())
+        assert [s.id for s in pantry.sections] == [
+            "fresh-dairy-and-produce",
+            "shelf-stable-pantry",
+            "make-ahead-staples",
+        ]
+        minimums = {
+            "fresh-dairy-and-produce": 9,
+            "shelf-stable-pantry": 15,
+            "make-ahead-staples": 7,
+        }
+        for section in pantry.sections:
+            assert len(section.items) >= minimums[section.id], (
+                section.id,
+                len(section.items),
+            )
+
+    def test_real_curated_leads_with_english_labels(self):
+        pantry = menu_source.parse_pantry(CAFE_PANTRY_MD.read_text())
+        expected = {
+            "fresh-dairy-and-produce": ("Sữa & Trái Cây", "Fresh Dairy and Produce"),
+            "shelf-stable-pantry": ("Đồ Khô", "Shelf-Stable Pantry"),
+            "make-ahead-staples": ("Làm Sẵn", "Make-Ahead Staples"),
+        }
+        for section in pantry.sections:
+            lead, label = expected[section.id]
+            assert section.title_lead == lead, section.id
+            assert section.title_label == label, section.id
+
+    def test_real_spot_items_annotation_note_intro_and_outro(self):
+        pantry = menu_source.parse_pantry(CAFE_PANTRY_MD.read_text())
+        by_name = {
+            i.name_en: i for s in pantry.sections for i in s.items
+        }
+        assert by_name["Heavy whipping cream"].name_vi == "pint carton"
+        make_ahead = pantry.sections[2]
+        assert "Brew or mix these ahead" in make_ahead.note
+        assert "Everything to buy" in pantry.intro
+        assert "Ice is assumed on hand" in pantry.outro
+
+
 class TestRender:
     def test_render_contains_sections_and_items(self):
         menu = generate.parse_menu(RECIPES_CAFE.read_text())
@@ -1291,6 +1478,9 @@ class TestRender:
                 )
             )
         ), "the bar render must never carry the print page break"
+        assert (
+            'class="own-page"' not in generate.render_pantry_page(real_pantry_menu())
+        ), "the pantry render must never carry the print page break"
 
     def test_render_has_no_ordering_artifacts(self):
         menu = generate.parse_menu(RECIPES_CAFE.read_text())
@@ -1391,6 +1581,7 @@ class TestBarRender:
         page = generate.render_bar_page(self._bar_items())
         assert '<a href="menu.html">' in page
         assert '<a href="kitchen.html">' in page
+        assert '<a href="pantry.html">' in page
 
     def test_print_hides_footer_links_paragraph(self):
         page = generate.render_bar_page(self._bar_items())
@@ -1452,12 +1643,83 @@ class TestKitchenRender:
         page = self._kitchen_page()
         assert '<a href="menu.html">' in page
         assert '<a href="bar.html">' in page
+        assert '<a href="pantry.html">' in page
 
     def test_render_escapes_item_text(self):
         kitchen = real_kitchen_menu()
         kitchen.sections[0].items[0].description = "<script>alert(1)</script>"
         page = generate.render_kitchen_page(kitchen)
         assert "<script>alert" not in page
+
+
+def real_pantry_menu():
+    return menu_source.parse_pantry(CAFE_PANTRY_MD.read_text())
+
+
+class TestPantryRender:
+    def _pantry_page(self):
+        return generate.render_pantry_page(real_pantry_menu())
+
+    def test_render_contains_section_heads_items_intro_and_outro(self):
+        page = self._pantry_page()
+        for needle in [
+            ">SỮA &amp; TRÁI CÂY<",
+            ">ĐỒ KHÔ<",
+            ">LÀM SẴN<",
+            '<span class="section-en">Fresh Dairy and Produce</span>',
+            '<span class="section-en">Shelf-Stable Pantry</span>',
+            '<span class="section-en">Make-Ahead Staples</span>',
+            ">Heavy whipping cream<",
+            '<p class="item-vi">pint carton</p>',
+            "Everything to buy",
+            "Ice is assumed on hand",
+            "Brew or mix these ahead of service",
+        ]:
+            assert needle in page, f"missing {needle!r}"
+
+    def test_render_has_two_drip_dividers_between_three_sections(self):
+        page = self._pantry_page()
+        assert page.count('<div class="drip" aria-hidden="true">') == 2
+
+    def test_render_has_no_pills_or_ordering_artifacts(self):
+        page = self._pantry_page()
+        assert '<span class="tag' not in page
+        assert "data-id" not in page
+        assert "data-temperatures" not in page
+        assert "application/json" not in page
+
+    def test_render_keeps_footer_links_and_pdf_view(self):
+        page = self._pantry_page()
+        for needle in [
+            '<a href="menu.html">',
+            '<a href="bar.html">',
+            '<a href="kitchen.html">',
+            '<a class="pdf-link" href="pantry.pdf">PDF View</a>',
+        ]:
+            assert needle in page, f"missing {needle!r}"
+
+    def test_render_escapes_item_text(self):
+        pantry = real_pantry_menu()
+        pantry.sections[0].items[0].description = "<script>alert(1)</script>"
+        page = generate.render_pantry_page(pantry)
+        assert "<script>alert" not in page
+
+    def test_unmapped_section_renders_english_lead_without_label(self):
+        pantry = menu_source.PantryMenu(
+            intro=None,
+            outro=None,
+            sections=[
+                menu_source.PantrySection(
+                    id="brand-new-group",
+                    title_lead="Brand New Group",
+                    title_label=None,
+                    items=[menu_source.Item("Something new", None, None, [])],
+                )
+            ],
+        )
+        page = generate.render_pantry_page(pantry)
+        assert ">BRAND NEW GROUP<" in page
+        assert 'class="section-en"' not in page
 
 
 class TestPrintFit:
@@ -1649,9 +1911,10 @@ class TestPrintFit:
             "menu/compact.html",
             "bar.html",
             "kitchen.html",
+            "pantry.html",
         }
         assert generate.PRINT_HEADROOM_STEPS["menu/compact.html"] == 2
-        for name in ("menu.html", "bar.html", "kitchen.html"):
+        for name in ("menu.html", "bar.html", "kitchen.html", "pantry.html"):
             assert generate.PRINT_HEADROOM_STEPS[name] == 1, name
 
     def test_fit_rejects_a_headroom_below_one_step(self):
@@ -1686,7 +1949,7 @@ class TestPageBudget:
     def test_built_pages_satisfy_print_budgets(self, tmp_path):
         out = tmp_path / "public"
         generate.build_site(recipes_path=RECIPES_CAFE, out_dir=out)
-        for page in ("menu.html", "kitchen.html"):
+        for page in ("menu.html", "kitchen.html", "pantry.html"):
             counts = generate.render_page_counts((out / page).read_text())
             for size, count in counts.items():
                 assert count <= 2, (page, size, count)
@@ -1744,6 +2007,7 @@ class TestPrintPdf:
             "menu/compact.pdf": generate.COMPACT_PAGE_BUDGET,
             "bar.pdf": generate.BAR_PAGE_BUDGET,
             "kitchen.pdf": generate.PRINT_PAGE_BUDGET,
+            "pantry.pdf": generate.PANTRY_PAGE_BUDGET,
         }
 
     def test_pdf_only_stylesheet_hides_footer_and_carries_margin_box(self):
@@ -1857,6 +2121,7 @@ class TestPrintPdfLink:
             "menu/compact.html": "compact.pdf",
             "kitchen.html": "kitchen.pdf",
             "bar.html": "bar.pdf",
+            "pantry.html": "pantry.pdf",
         }
         for name, pdf in expected.items():
             page = (out / name).read_text()
@@ -1893,11 +2158,12 @@ class TestBuildSite:
             "menu/compact.html",
             "kitchen.html",
             "bar.html",
+            "pantry.html",
         ]
         for name in expected:
             assert (out / name).is_file(), f"missing {name}"
         assert (out / "index.html").read_text() == (out / "menu.html").read_text()
-        for page in ("kitchen.html", "bar.html"):
+        for page in ("kitchen.html", "bar.html", "pantry.html"):
             assert "CAFE ÔNG THỌ" in (out / page).read_text()
 
     def test_homepage_is_the_full_menu(self, no_fit_build):
@@ -1941,6 +2207,7 @@ PUBLISHED_PAGES = (
     "menu/compact.html",
     "kitchen.html",
     "bar.html",
+    "pantry.html",
 )
 
 # The companion strip is 3px tall inside the padding box; the print
@@ -2247,4 +2514,18 @@ class TestPlaqueDoubleRule:
                 f"{generate.PRINT_ROOT_FLOOR:g}px print floor; the 3px "
                 f"companion strip needs {STRIP_CLEARANCE_PX}px of clearance"
             )
+
+
+class TestPantryNavLinks:
+    def test_every_published_page_links_the_pantry_page(self, no_fit_build):
+        # The pantry page carries no self-link; its own footer links are
+        # pinned by TestPantryRender.
+        for name in PUBLISHED_PAGES:
+            if name == "pantry.html":
+                continue
+            page = (no_fit_build / name).read_text()
+            if name == "menu/compact.html":
+                assert '<a href="../pantry.html">Đi Chợ</a>' in page, name
+            else:
+                assert 'href="pantry.html"' in page, name
 
