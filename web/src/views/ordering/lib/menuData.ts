@@ -418,6 +418,38 @@ export const menuDocument: MenuDocument = {
       "imagePath": null
     },
     {
+      "id": "saigon-white-coffee",
+      "name": "Saigon White Coffee",
+      "nameVi": "Cà Phê Bạc Xỉu",
+      "description": "Bạc xỉu, the Saigon white coffee: southern Vietnam's milkier, sweeter cup, more milk than coffee poured over sweetened condensed milk. The condensed-milk counterpart of the House Latte, served hot or over ice like they do on the streets of Sài Gòn.",
+      "categoryId": "ca-phe",
+      "temperatures": [
+        "hot",
+        "iced"
+      ],
+      "modifierGroupIds": [
+        "sweetness",
+        "cold-foam"
+      ],
+      "imagePath": null
+    },
+    {
+      "id": "egg-coffee",
+      "name": "Egg Coffee",
+      "nameVi": "Cà Phê Trứng",
+      "description": "Hanoi's custard-cap coffee: strong coffee under a dense Egg Foam, served hot or over crushed ice.",
+      "categoryId": "ca-phe",
+      "temperatures": [
+        "hot",
+        "iced"
+      ],
+      "modifierGroupIds": [
+        "sweetness",
+        "cold-foam"
+      ],
+      "imagePath": null
+    },
+    {
       "id": "cortado",
       "name": "Cortado",
       "nameVi": "Cortado",
@@ -453,6 +485,22 @@ export const menuDocument: MenuDocument = {
       "name": "Mocha",
       "nameVi": "Cà Phê Cacao",
       "description": "Cocoa folded into hot concentrate, finished with frothed milk.",
+      "categoryId": "ca-phe",
+      "temperatures": [
+        "hot",
+        "iced"
+      ],
+      "modifierGroupIds": [
+        "sweetness",
+        "cold-foam"
+      ],
+      "imagePath": null
+    },
+    {
+      "id": "egg-cocoa",
+      "name": "Egg Cocoa",
+      "nameVi": "Cacao Trứng",
+      "description": "The Mocha build capped with Cocoa Egg Foam: chocolate custard over chocolate coffee.",
       "categoryId": "ca-phe",
       "temperatures": [
         "hot",
@@ -606,6 +654,22 @@ export const menuDocument: MenuDocument = {
       "modifierGroupIds": [
         "milk-matcha-latte",
         "sweetener-matcha",
+        "sweetness",
+        "cold-foam"
+      ],
+      "imagePath": null
+    },
+    {
+      "id": "egg-matcha-latte",
+      "name": "Egg Matcha Latte",
+      "nameVi": "Matcha Trứng",
+      "description": "The Matcha Latte capped with Matcha Egg Foam: bittersweet greens under a sweet custard cap.",
+      "categoryId": "mat-cha",
+      "temperatures": [
+        "hot",
+        "iced"
+      ],
+      "modifierGroupIds": [
         "sweetness",
         "cold-foam"
       ],
@@ -896,6 +960,42 @@ export const menuDocument: MenuDocument = {
       "name": "Yogurt Cold Foam",
       "nameVi": "Kem Sữa Chua",
       "description": "Vanilla yogurt loosened with cream, a tangy cap.",
+      "categoryId": "kem",
+      "temperatures": [
+        "iced"
+      ],
+      "modifierGroupIds": [],
+      "imagePath": null
+    },
+    {
+      "id": "kem-trung",
+      "name": "Egg Cold Foam",
+      "nameVi": "Kem Trứng",
+      "description": "Egg yolk and condensed milk whisked to a dense, custardy cap.",
+      "categoryId": "kem",
+      "temperatures": [
+        "iced"
+      ],
+      "modifierGroupIds": [],
+      "imagePath": null
+    },
+    {
+      "id": "kem-cacao-trung",
+      "name": "Cocoa Egg Cold Foam",
+      "nameVi": "Kem Cacao Trứng",
+      "description": "Cocoa whisked into the egg foam for a chocolate custard cap.",
+      "categoryId": "kem",
+      "temperatures": [
+        "iced"
+      ],
+      "modifierGroupIds": [],
+      "imagePath": null
+    },
+    {
+      "id": "kem-matcha-trung",
+      "name": "Matcha Egg Cold Foam",
+      "nameVi": "Kem Matcha Trứng",
+      "description": "Matcha sifted into the egg foam for a bittersweet custard cap.",
       "categoryId": "kem",
       "temperatures": [
         "iced"

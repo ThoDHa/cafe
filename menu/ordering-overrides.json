@@ -482,6 +482,21 @@
     "Yogurt Cold Foam": {
       "id": "kem-sua-chua",
       "description": "Vanilla yogurt loosened with cream, a tangy cap."
+    },
+    "Egg Cold Foam": {
+      "id": "kem-trung",
+      "nameVi": "Kem Trứng",
+      "description": "Egg yolk and condensed milk whisked to a dense, custardy cap."
+    },
+    "Cocoa Egg Cold Foam": {
+      "id": "kem-cacao-trung",
+      "nameVi": "Kem Cacao Trứng",
+      "description": "Cocoa whisked into the egg foam for a chocolate custard cap."
+    },
+    "Matcha Egg Cold Foam": {
+      "id": "kem-matcha-trung",
+      "nameVi": "Kem Matcha Trứng",
+      "description": "Matcha sifted into the egg foam for a bittersweet custard cap."
     }
   }
 }
