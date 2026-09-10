@@ -16,7 +16,8 @@ Usage:
         [--out DIR] [--recipes PATH] [--chrome PATH]
 
 With --out the script consumes an existing build directory; without it the
-script builds the site first (that mode also needs weasyprint). The browser
+script builds the site first (that mode also needs weasyprint and
+openpyxl). The browser
 defaults to
 ~/.cache/ms-playwright/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell
 and can be overridden with --chrome or the PRINT_CHROME_BIN environment
@@ -55,7 +56,7 @@ import generate  # noqa: E402
 
 DEFAULT_RECIPES = generate.DEFAULT_RECIPES
 
-# The five published pages and their print budgets, mirrored from the
+# The seven published pages and their print budgets, mirrored from the
 # generator's own budget constants so a budget change propagates here.
 PAGE_BUDGETS = {
     "menu.html": generate.PRINT_PAGE_BUDGET,
@@ -63,6 +64,8 @@ PAGE_BUDGETS = {
     "bar.html": generate.BAR_PAGE_BUDGET,
     "kitchen.html": generate.PRINT_PAGE_BUDGET,
     "pantry.html": generate.PANTRY_PAGE_BUDGET,
+    "prices.html": generate.PRICES_PAGE_BUDGET,
+    "prices/compact.html": generate.PRICES_COMPACT_PAGE_BUDGET,
 }
 
 

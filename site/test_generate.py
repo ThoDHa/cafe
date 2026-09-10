@@ -8,6 +8,7 @@ import os
 import re
 import sys
 import textwrap
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -19,11 +20,14 @@ RECIPES_CAFE = Path(
 )
 COCKTAILS_MD = RECIPES_CAFE.parent / "cocktails.md"
 CAFE_PANTRY_MD = RECIPES_CAFE.parent / "cafe_pantry.md"
+CAFE_COSTS_XLSX = RECIPES_CAFE.parent / "cafe_costs.xlsx"
 MENU_JSON = REPO_ROOT / "menu" / "menu.json"
 
 sys.path.insert(0, str(SITE_DIR))
 
 import generate  # noqa: E402
+
+import pricing_source  # noqa: E402
 
 sys.path.insert(0, str(REPO_ROOT / "menu"))
 
@@ -163,6 +167,25 @@ class TestParserSections:
         assert menu.by_id("tra").title_vi == "Trà"
         assert menu.by_id("giai-khat").title_vi == "Giải Khát"
         assert menu.by_id("kem").title_en == "Cold Foams"
+
+    def test_foams_section_under_both_titles_fails_loudly(self):
+        text = FIXTURE + textwrap.dedent(
+            """
+            ## Foams
+
+            Creamy foam caps for any drink.
+
+            ### Stray Foam
+
+            - 30g heavy whipping cream
+            """
+        )
+        with pytest.raises(menu_source.UnmappedSectionError) as excinfo:
+            menu_source.parse_menu(text)
+        message = str(excinfo.value)
+        assert "Foams" in message
+        assert "Cold Foams" in message
+        assert "exactly one" in message
 
     def test_category_blurb_is_parsed_from_fixture(self):
         menu = parsed_fixture()
@@ -954,6 +977,16 @@ class TestRealRecipesFile:
         for section_id, minimum in minimums.items():
             assert counts[section_id] >= minimum, (section_id, counts[section_id])
 
+    def test_renamed_foams_section_maps_to_kem(self):
+        # The recipes renamed the Cold Foams section to Foams and added
+        # the hot egg builds; the Kem section must keep mapping either
+        # heading and carry the foam builds it drives.
+        menu = generate.parse_menu(RECIPES_CAFE.read_text())
+        kem = menu.by_id("kem")
+        names = {item.name_en for item in kem.items}
+        assert "Base Foam" in names
+        assert any("Egg" in name for name in names), names
+
     def test_real_section_order_is_tra_before_mat_cha(self):
         menu = generate.parse_menu(RECIPES_CAFE.read_text())
         assert [s.id for s in menu.sections] == [
@@ -1555,6 +1588,464 @@ def print_css_of(page_html: str, name: str) -> str:
     return page_html.split(marker, 1)[1].split("</style>", 1)[0]
 
 
+def read_workbook_rows() -> dict[str, pricing_source.DrinkCost]:
+    return {
+        row.name: row for row in pricing_source.read_drink_costs(CAFE_COSTS_XLSX)
+    }
+
+
+def menu_without_drink(name: str) -> generate.Menu:
+    """Parse the real menu and drop one drink by its English name."""
+
+    menu = generate.parse_menu(RECIPES_CAFE.read_text())
+    return generate.Menu(
+        sections=[
+            replace(section, items=[i for i in section.items if i.name_en != name])
+            for section in menu.sections
+        ]
+    )
+
+
+def bac_xiu_menu_name() -> str | None:
+    """The live menu's Bạc Xỉu drink name, matched by either curated name.
+
+    The drink's English name is volatile (it has been "Bạc Xỉu" and is
+    now "White Coffee"); its Vietnamese name and the curated item's
+    names are the stable identity. Returns None when cafe.md defines no
+    Bạc Xỉu drink, the world where the join inserts the curated item.
+    """
+
+    menu = generate.parse_menu(RECIPES_CAFE.read_text())
+    return next(
+        (
+            item.name_en
+            for s in menu.sections
+            if s.id != "kem"
+            for item in s.items
+            if item.name_en in generate.BAC_XIU_ITEM_NAMES
+            or item.name_vi in generate.BAC_XIU_ITEM_NAMES
+        ),
+        None,
+    )
+
+
+def synthetic_costs_for(menu: generate.Menu) -> list[pricing_source.DrinkCost]:
+    """One $1/$2 row per non-Kem drink name of the given menu."""
+
+    return [
+        pricing_source.DrinkCost(name, 1.0, 2.0)
+        for name in {
+            item.name_en
+            for s in menu.sections
+            if s.id != "kem"
+            for item in s.items
+        }
+    ]
+
+
+def joined_prices() -> tuple[list[generate.Section], dict[str, pricing_source.DrinkCost]]:
+    """Parse the real menu and join the real workbook rows, once per call."""
+    menu = generate.parse_menu(RECIPES_CAFE.read_text())
+    costs = list(read_workbook_rows().values())
+    return generate.join_prices(menu, costs)
+
+
+def price_cluster_text(row: pricing_source.DrinkCost) -> str:
+    """Build the contract price-cluster bytes from one workbook row.
+
+    The cluster shape is spelled out here rather than delegated to the
+    renderer so the test pins the contract microformat, with the two
+    dollar figures derived from the workbook at test time through the
+    same half-up formatter as the pages.
+    """
+
+    return (
+        '<span class="price">'
+        f'<span class="price-cost">{generate.format_price(row.cost)}</span>'
+        '<span class="price-sep">·</span>'
+        f'<span class="price-menu">{generate.format_price(row.suggested)}</span>'
+        "</span>"
+    )
+
+
+class TestPricesJoin:
+    def test_join_prices_every_menu_drink_exactly_once(self):
+        menu = generate.parse_menu(RECIPES_CAFE.read_text())
+        menu_drinks = {
+            item.name_en
+            for s in menu.sections
+            if s.id != "kem"
+            for item in s.items
+        }
+        sections, costs = joined_prices()
+        assert [s.id for s in sections] == ["ca-phe", "tra", "mat-cha", "giai-khat"]
+        priced_names = [
+            item.name_en for s in sections for item in s.items
+        ]
+        assert set(priced_names) - menu_drinks <= {"Bạc Xỉu"}, (
+            "the priced pages may add no drink beyond the menu's own, "
+            "except the curated Bạc Xỉu insertion when cafe.md lacks it"
+        )
+        assert menu_drinks <= set(priced_names)
+        assert len(priced_names) == len(set(priced_names)) == len(costs), (
+            "every priced drink must be unique and carry exactly one "
+            "workbook row: Bạc Xỉu must render once, priced, whether "
+            "cafe.md defines it natively or the join inserts it"
+        )
+        expected_bac_xiu = bac_xiu_menu_name() or "Bạc Xỉu"
+        assert priced_names.count(expected_bac_xiu) == 1
+        assert expected_bac_xiu in costs
+
+    def test_join_inserts_bac_xiu_when_the_menu_lacks_it(self):
+        native = bac_xiu_menu_name()
+        menu = (
+            menu_without_drink(native)
+            if native
+            else generate.parse_menu(RECIPES_CAFE.read_text())
+        )
+        assert not any(
+            item.name_en in generate.BAC_XIU_ITEM_NAMES
+            or item.name_vi in generate.BAC_XIU_ITEM_NAMES
+            for s in menu.sections
+            for item in s.items
+        ), "precondition: this menu defines no Bạc Xỉu drink of its own"
+        costs = synthetic_costs_for(menu)
+        costs.append(
+            pricing_source.DrinkCost("Bạc Xỉu (House Latte variant)", 1.0, 2.0)
+        )
+        sections, costs_by_name = generate.join_prices(menu, costs)
+        ca_phe_names = [item.name_en for item in sections[0].items]
+        assert ca_phe_names.count(pricing_source.BAC_XIU.name_en) == 1
+        assert ca_phe_names.index(pricing_source.BAC_XIU.name_en) == (
+            ca_phe_names.index("House Latte") + 1
+        )
+        assert pricing_source.BAC_XIU.name_en in costs_by_name
+
+    def test_native_bac_xiu_needs_no_anchor(self):
+        menu = parsed_fixture()
+        menu.by_id("ca-phe").items[0].name_en = "Bạc Xỉu"
+        costs = synthetic_costs_for(menu)
+        sections, costs_by_name = generate.join_prices(menu, costs)
+        priced_names = [
+            item.name_en for s in sections for item in s.items
+        ]
+        assert "House Latte" not in {
+            item.name_en for s in menu.sections for item in s.items
+        }, "precondition: this synthetic menu carries no anchor drink"
+        assert priced_names.count("Bạc Xỉu") == 1
+        assert "Bạc Xỉu" in costs_by_name
+
+    def test_join_does_not_mutate_the_parsed_menu(self):
+        menu = generate.parse_menu(RECIPES_CAFE.read_text())
+        before = [item.name_en for s in menu.sections for item in s.items]
+        sections, costs = generate.join_prices(
+            menu, list(read_workbook_rows().values())
+        )
+        after = [item.name_en for s in menu.sections for item in s.items]
+        assert after == before, (
+            "join_prices must build its own sections: the parsed menu feeds "
+            "the unpriced pages too, which must stay insertion-free"
+        )
+        assert sections[0].items is not menu.by_id("ca-phe").items
+
+    def test_join_fails_loudly_listing_both_unmatched_sets(
+        self, monkeypatch, tmp_path
+    ):
+        rows = list(read_workbook_rows().values())
+        mutated = [
+            pricing_source.DrinkCost("Discontinued Elixir", row.cost, row.suggested)
+            if row.name == "Cocoa"
+            else row
+            for row in rows
+        ]
+        monkeypatch.setattr(pricing_source, "read_drink_costs", lambda path: mutated)
+        with pytest.raises(generate.PriceJoinError) as excinfo:
+            generate.build_site(
+                recipes_path=RECIPES_CAFE, out_dir=tmp_path / "public", fit_pages=False
+            )
+        message = str(excinfo.value)
+        assert "Discontinued Elixir" in message, message
+        assert "Cocoa" in message, message
+        assert "workbook rows with no menu drink" in message
+        assert "menu drinks with no workbook row" in message
+
+    def test_unknown_workbook_row_fails_loudly_naming_it(
+        self, monkeypatch, tmp_path
+    ):
+        rows = list(read_workbook_rows().values()) + [
+            pricing_source.DrinkCost("Extra Workbook Row", 1.0, 2.0)
+        ]
+        monkeypatch.setattr(pricing_source, "read_drink_costs", lambda path: rows)
+        with pytest.raises(generate.PriceJoinError) as excinfo:
+            generate.build_site(
+                recipes_path=RECIPES_CAFE, out_dir=tmp_path / "public", fit_pages=False
+            )
+        assert "Extra Workbook Row" in str(excinfo.value)
+
+    def test_two_rows_mapping_to_one_drink_fail_loudly_naming_both(
+        self, monkeypatch, tmp_path
+    ):
+        rows = list(read_workbook_rows().values()) + [
+            pricing_source.DrinkCost("Pour Over Coffee", 1.0, 2.0)
+        ]
+        monkeypatch.setattr(pricing_source, "read_drink_costs", lambda path: rows)
+        with pytest.raises(generate.PriceJoinError) as excinfo:
+            generate.build_site(
+                recipes_path=RECIPES_CAFE, out_dir=tmp_path / "public", fit_pages=False
+            )
+        message = str(excinfo.value)
+        assert "Pour Over" in message
+        assert "Pour Over Coffee" in message
+        assert "both map to" in message
+
+    def test_renamed_row_prices_the_drink_through_the_alias(self):
+        menu = parsed_fixture()
+        menu.by_id("ca-phe").items[1].name_en = "Bạc Xỉu"
+        assert "Vietnamese Iced Coffee" in {
+            item.name_en for s in menu.sections for item in s.items
+        }, "precondition: this synthetic menu carries the renamed drink"
+        costs = [
+            pricing_source.DrinkCost(
+                "Vietnamese Coffee" if row.name == "Vietnamese Iced Coffee" else row.name,
+                row.cost,
+                row.suggested,
+            )
+            for row in synthetic_costs_for(menu)
+        ]
+        _, costs_by_name = generate.join_prices(menu, costs)
+        assert costs_by_name["Vietnamese Iced Coffee"].name == (
+            "Vietnamese Coffee"
+        )
+
+    def test_identity_match_wins_when_a_drink_carries_the_row_name(self):
+        menu = parsed_fixture()
+        menu.by_id("ca-phe").items[0].name_en = "Vietnamese Coffee"
+        menu.by_id("ca-phe").items[1].name_en = "Bạc Xỉu"
+        costs = synthetic_costs_for(menu)
+        _, costs_by_name = generate.join_prices(menu, costs)
+        assert costs_by_name["Vietnamese Coffee"].name == "Vietnamese Coffee"
+
+    def test_missing_bac_xiu_anchor_fails_loudly_naming_it(self):
+        fixture_drinks = [
+            item.name_en
+            for s in parsed_fixture().sections
+            if s.id != "kem"
+            for item in s.items
+        ]
+        rows = [
+            pricing_source.DrinkCost(name, 1.0, 2.0) for name in fixture_drinks
+        ]
+        rows.append(
+            pricing_source.DrinkCost("Bạc Xỉu (House Latte variant)", 1.0, 2.0)
+        )
+        with pytest.raises(generate.PriceJoinError) as excinfo:
+            generate.join_prices(parsed_fixture(), rows)
+        assert "House Latte" in str(excinfo.value)
+
+    def test_duplicate_bac_xiu_anchor_fails_loudly_naming_it(self):
+        menu = parsed_fixture()
+        ca_phe = menu.by_id("ca-phe")
+        ca_phe.items[0].name_en = pricing_source.BAC_XIU_ANCHOR
+        ca_phe.items[1].name_en = pricing_source.BAC_XIU_ANCHOR
+        rows = synthetic_costs_for(menu)
+        rows.append(
+            pricing_source.DrinkCost("Bạc Xỉu (House Latte variant)", 1.0, 2.0)
+        )
+        with pytest.raises(generate.PriceJoinError) as excinfo:
+            generate.join_prices(menu, rows)
+        assert "House Latte" in str(excinfo.value)
+
+
+class TestPricesRender:
+    def test_format_price_rounds_a_half_cent_half_up(self):
+        assert generate.format_price(1.005) == "$1.01"
+        assert generate.format_price(1.015) == "$1.02"
+
+    def test_both_priced_pages_carry_four_sections_of_priced_items(
+        self, no_fit_build
+    ):
+        menu = generate.parse_menu(RECIPES_CAFE.read_text())
+        expected_items = sum(
+            len(s.items) for s in menu.sections if s.id != "kem"
+        )
+        for name in ("prices.html", "prices/compact.html"):
+            page = (no_fit_build / name).read_text()
+            assert len(re.findall(r"<section[ >]", page)) == 4, name
+            assert page.count('<div class="item">') == expected_items, name
+            # Counted inside the item lines because each template carries
+            # the contract cluster once more as an HTML-comment sample.
+            line_blocks = re.findall(r'<div class="item-line">.*?</div>', page, re.S)
+            assert len(line_blocks) == expected_items, name
+            priced = [
+                block for block in line_blocks if '<span class="price">' in block
+            ]
+            assert len(priced) == expected_items, name
+            assert ">KEM<" not in page, name
+
+    def test_black_coffee_line_carries_the_workbook_clusters(self, no_fit_build):
+        _, costs = joined_prices()
+        cluster = price_cluster_text(costs["Black Coffee"])
+        for name in ("prices.html", "prices/compact.html"):
+            page = (no_fit_build / name).read_text()
+            assert cluster in page, name
+
+    def test_bac_xiu_line_rides_its_own_workbook_row(self, no_fit_build):
+        _, costs = joined_prices()
+        cluster = price_cluster_text(costs[bac_xiu_menu_name() or "Bạc Xỉu"])
+        page = (no_fit_build / "prices.html").read_text()
+        name_at = page.index(">Cà Phê Bạc Xỉu<")
+        next_item_at = page.index('<div class="item">', name_at)
+        line_block = page[name_at:next_item_at]
+        assert cluster in line_block
+        assert line_block.index('<span class="tags">') < line_block.index(
+            '<span class="price">'
+        ), "the price cluster must sit after the pills in the item line"
+        ca_phe_at = page.index(">CÀ PHÊ<")
+        tra_at = page.index(">TRÀ<")
+        assert ca_phe_at < name_at < tra_at, (
+            "the Bạc Xỉu line must render inside Cà Phê, wherever cafe.md "
+            "places the drink"
+        )
+
+    def test_pour_over_row_prices_the_pour_over_coffee_line(self, no_fit_build):
+        _, costs = joined_prices()
+        cluster = price_cluster_text(costs["Pour Over Coffee"])
+        page = (no_fit_build / "prices.html").read_text()
+        name_at = page.index(">Cà Phê Pha Tay<")
+        line_block = page[name_at : page.index('class="item-vi">Pour Over Coffee<')]
+        assert cluster in line_block
+
+    def test_regular_prices_page_breaks_print_at_mat_cha_only(self):
+        sections, costs = joined_prices()
+        page = generate.render_prices_page(sections, costs)
+        tagged = re.findall(
+            r'<section class="own-page">\s*<div class="section-head">\s*'
+            r"<h2>([^<]+)</h2>",
+            page,
+        )
+        assert tagged == ["MÁT-CHA"]
+        compact = generate.render_prices_compact_page(sections, costs)
+        assert 'class="own-page"' not in compact
+
+    def test_priced_pages_render_through_their_own_templates(self, no_fit_build):
+        regular = (no_fit_build / "prices.html").read_text()
+        compact = (no_fit_build / "prices/compact.html").read_text()
+        assert "<title>Cafe Ông Thọ · Giá</title>" in regular
+        assert "<title>Cafe Ông Thọ · Giá · In</title>" in compact
+        assert 'href="prices.pdf">PDF View</a>' in regular
+        assert 'href="compact.pdf">PDF View</a>' in compact
+
+    def test_priced_item_text_is_escaped(self):
+        sections, costs = joined_prices()
+        sections[0].items[0].description = "<script>alert(1)</script>"
+        page = generate.render_prices_page(sections, costs)
+        assert "<script>alert" not in page
+
+
+def selling_price_text(cost: pricing_source.DrinkCost) -> str:
+    """Build the single selling-price span bytes from one workbook row.
+
+    The span shape is spelled out here, like price_cluster_text, so the
+    test pins the microformat while the dollar figure derives from the
+    workbook at test time through the same half-up formatter as the
+    prices pair.
+    """
+
+    return (
+        '<span class="price">'
+        f'<span class="price-menu">{generate.format_price(cost.suggested)}</span>'
+        "</span>"
+    )
+
+
+def item_line_block_for_name(page: str, name_en: str) -> str:
+    """Return one built page's item-line block for a drink's English name.
+
+    The English name leads the line when it is the display name and sits
+    in the item-vi subtitle otherwise; either way its line block is the
+    nearest .item-line opening before the name.
+    """
+
+    subtitle_at = page.find(f'class="item-vi">{name_en}<')
+    anchor_at = (
+        subtitle_at if subtitle_at != -1 else page.index(f">{name_en}<")
+    )
+    line_start = page.rindex('<div class="item-line">', 0, anchor_at)
+    line_end = page.index("</div>", line_start)
+    return page[line_start : line_end + len("</div>")]
+
+
+class TestMenuSellingPrices:
+    """The main menu pair carries one selling price per non-Kem drink.
+
+    Option B (user direction 2026-09-11): selling price only, no cost,
+    no separator, no legend; the Kem cold-foam builds carry no price
+    display; the prices pair keeps cost plus SRP.
+    """
+
+    def test_menu_pages_carry_one_price_per_non_kem_drink_and_none_in_kem(
+        self, no_fit_build
+    ):
+        menu = generate.parse_menu(RECIPES_CAFE.read_text())
+        kem_id = menu_source.KEM_SECTION[0]
+        expected_total = sum(
+            len(s.items) for s in menu.sections if s.id != kem_id
+        )
+        for name in ("menu.html", "index.html", "menu/compact.html"):
+            page = (no_fit_build / name).read_text()
+            sections = re.findall(r"<section[ >].*?</section>", page, re.S)
+            assert len(sections) == len(menu.sections), name
+            priced_total = 0
+            for section in sections:
+                line_blocks = re.findall(
+                    r'<div class="item-line">.*?</div>', section, re.S
+                )
+                if ">KEM<" in section:
+                    assert not any(
+                        '<span class="price">' in block
+                        for block in line_blocks
+                    ), f"{name}: the Kem section carries no price display"
+                    continue
+                for block in line_blocks:
+                    assert block.count('<span class="price">') == 1, (
+                        f"{name}: every drink line shows exactly one "
+                        f"selling price; got {block[:120]!r}"
+                    )
+                priced_total += len(line_blocks)
+            assert priced_total == expected_total, (
+                f"{name}: every one of the {expected_total} non-kem drinks "
+                f"carries a selling price; counted {priced_total}"
+            )
+
+    def test_black_coffee_line_carries_the_workbook_selling_price(
+        self, no_fit_build
+    ):
+        _, costs = joined_prices()
+        price = selling_price_text(costs["Black Coffee"])
+        for name in ("menu.html", "menu/compact.html"):
+            page = (no_fit_build / name).read_text()
+            block = item_line_block_for_name(page, "Black Coffee")
+            assert price in block, name
+            assert block.count('<span class="price">') == 1, name
+            assert block.index('<span class="tags">') < block.index(
+                '<span class="price">'
+            ), f"{name}: the price must sit after the pills in the item line"
+
+    def test_menu_pages_carry_no_cost_figures_separators_or_legend(
+        self, no_fit_build
+    ):
+        for name in ("menu.html", "index.html", "menu/compact.html"):
+            page = (no_fit_build / name).read_text()
+            assert "price-cost" not in page, name
+            assert "price-sep" not in page, name
+            assert "giá vốn" not in page, name
+
+    def test_index_stays_byte_identical_to_menu_html(self, no_fit_build):
+        assert (no_fit_build / "index.html").read_bytes() == (
+            no_fit_build / "menu.html"
+        ).read_bytes()
+
+
 class TestBarRender:
     def _bar_items(self):
         return menu_source.build_bar_items(
@@ -1912,9 +2403,18 @@ class TestPrintFit:
             "bar.html",
             "kitchen.html",
             "pantry.html",
+            "prices.html",
+            "prices/compact.html",
         }
         assert generate.PRINT_HEADROOM_STEPS["menu/compact.html"] == 2
-        for name in ("menu.html", "bar.html", "kitchen.html", "pantry.html"):
+        assert generate.PRINT_HEADROOM_STEPS["prices/compact.html"] == 3
+        for name in (
+            "menu.html",
+            "bar.html",
+            "kitchen.html",
+            "pantry.html",
+            "prices.html",
+        ):
             assert generate.PRINT_HEADROOM_STEPS[name] == 1, name
 
     def test_fit_rejects_a_headroom_below_one_step(self):
@@ -1959,6 +2459,16 @@ class TestPageBudget:
         counts = generate.render_page_counts((out / "menu" / "compact.html").read_text())
         for size, count in counts.items():
             assert count == 1, ("menu/compact.html", size, count)
+        prices_counts = generate.render_page_counts((out / "prices.html").read_text())
+        for size, count in prices_counts.items():
+            assert count <= generate.PRICES_PAGE_BUDGET, ("prices.html", size, count)
+        counts = generate.render_page_counts((out / "prices" / "compact.html").read_text())
+        for size, count in counts.items():
+            assert count == generate.PRICES_COMPACT_PAGE_BUDGET, (
+                "prices/compact.html",
+                size,
+                count,
+            )
 
     def test_fit_build_writes_every_print_pdf_artifact(self, tmp_path):
         out = tmp_path / "public"
@@ -2008,6 +2518,21 @@ class TestPrintPdf:
             "bar.pdf": generate.BAR_PAGE_BUDGET,
             "kitchen.pdf": generate.PRINT_PAGE_BUDGET,
             "pantry.pdf": generate.PANTRY_PAGE_BUDGET,
+            "prices.pdf": generate.PRICES_PAGE_BUDGET,
+            "prices/compact.pdf": generate.PRICES_COMPACT_PAGE_BUDGET,
+        }
+
+    def test_verify_script_page_budgets_mirror_the_generator_constants(self):
+        import verify_no_js_print
+
+        assert verify_no_js_print.PAGE_BUDGETS == {
+            "menu.html": generate.PRINT_PAGE_BUDGET,
+            "menu/compact.html": generate.COMPACT_PAGE_BUDGET,
+            "bar.html": generate.BAR_PAGE_BUDGET,
+            "kitchen.html": generate.PRINT_PAGE_BUDGET,
+            "pantry.html": generate.PANTRY_PAGE_BUDGET,
+            "prices.html": generate.PRICES_PAGE_BUDGET,
+            "prices/compact.html": generate.PRICES_COMPACT_PAGE_BUDGET,
         }
 
     def test_pdf_only_stylesheet_hides_footer_and_carries_margin_box(self):
@@ -2122,6 +2647,8 @@ class TestPrintPdfLink:
             "kitchen.html": "kitchen.pdf",
             "bar.html": "bar.pdf",
             "pantry.html": "pantry.pdf",
+            "prices.html": "prices.pdf",
+            "prices/compact.html": "compact.pdf",
         }
         for name, pdf in expected.items():
             page = (out / name).read_text()
@@ -2159,6 +2686,8 @@ class TestBuildSite:
             "kitchen.html",
             "bar.html",
             "pantry.html",
+            "prices.html",
+            "prices/compact.html",
         ]
         for name in expected:
             assert (out / name).is_file(), f"missing {name}"
@@ -2208,6 +2737,8 @@ PUBLISHED_PAGES = (
     "kitchen.html",
     "bar.html",
     "pantry.html",
+    "prices.html",
+    "prices/compact.html",
 )
 
 # The companion strip is 3px tall inside the padding box; the print
@@ -2524,8 +3055,34 @@ class TestPantryNavLinks:
             if name == "pantry.html":
                 continue
             page = (no_fit_build / name).read_text()
-            if name == "menu/compact.html":
+            if name == "menu/compact.html" or name == "prices/compact.html":
                 assert '<a href="../pantry.html">Đi Chợ</a>' in page, name
             else:
                 assert 'href="pantry.html"' in page, name
+
+
+class TestPricesNavLinks:
+    def test_every_existing_page_links_the_priced_pages(self, no_fit_build):
+        # The priced pages carry their own navs (the Giá entry is
+        # aria-current there); every pre-existing page gains a plain link.
+        for name in ("index.html", "menu.html", "kitchen.html", "bar.html", "pantry.html"):
+            page = (no_fit_build / name).read_text()
+            assert '<a href="prices.html">Giá</a>' in page, name
+        compact = (no_fit_build / "menu/compact.html").read_text()
+        assert '<a href="../prices/compact.html">Giá</a>' in compact
+
+    def test_every_nav_carrying_page_marks_exactly_one_current_page(
+        self, no_fit_build
+    ):
+        nav_pages = (
+            "index.html",
+            "menu.html",
+            "menu/compact.html",
+            "prices.html",
+            "prices/compact.html",
+        )
+        for name in PUBLISHED_PAGES:
+            page = (no_fit_build / name).read_text()
+            expected = 1 if name in nav_pages else 0
+            assert page.count('aria-current="page"') == expected, name
 

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Cafe Ông Thọ — Bar</title>
+<title>Cafe Ông Thọ · Giá</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Lora:ital,wght@0,500;0,600;1,500;1,600&family=Be+Vietnam+Pro:ital,wght@0,400;0,500;0,600;1,400&display=swap">
@@ -177,6 +177,12 @@
   .tags { display: inline-flex; gap: 0.35rem; margin-left: auto; }
 
   .tag {
+    /* inline-block, not a bare flex item: weasyprint 69 paints the border
+       and background of a flex item of a nested inline-flex container twice
+       (two concentric pill rings; browsers paint once). Browsers blockify
+       flex items, so this declaration changes nothing for them. Drop it if
+       weasyprint fixes nested flex item painting. */
+    display: inline-block;
     font-size: 0.66rem;
     font-weight: 600;
     letter-spacing: 0.12em;
@@ -185,6 +191,39 @@
     border-radius: 999px;
     white-space: nowrap;
   }
+
+  /* Screen tints run deeper than the print tints: the print fills are
+     tuned for white stock and vanish against the cream card. */
+  .tag.nong { color: var(--seal); border: 1.5px solid var(--seal); background: #ECCDC9; }
+  .tag.da   { color: var(--cobalt); border: 1.5px solid var(--cobalt); background: #C7CDD8; }
+  /* Screen-only label tint: seal #B5372A on the #ECCDC9 fill is 3.99:1;
+     the 0.92-scaled #A63327 clears AA at 4.53:1. The unscoped rule above
+     keeps print text at var(--seal), so the print block and PDFs stand. */
+  @media screen { .tag.nong { color: #A63327; } }
+
+  /* A pill type an item lacks leaves its slot reserved: the placeholder
+     keeps the pill's box (same text, padding, border) so the two pill
+     columns hold their x positions, while visibility paints it nothing. */
+  .tag.slot { visibility: hidden; }
+
+  /* One cluster knob: children scale in em, so print and the fit walk
+     resize the whole cluster from this rem value. */
+  .price {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.3rem;
+    /* Two auto margins in one flex line split the free space, so the
+       cluster pushes itself only on pill-less lines and rides the pills'
+       push on the rest. */
+    margin-left: auto;
+    white-space: nowrap;
+    font-size: 0.82rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .tags + .price { margin-left: 0; }
+  .price-cost { font-size: 0.95em; color: var(--ink-muted); }
+  .price-sep  { color: var(--rule); }
+  .price-menu { font-size: 1.15em; font-weight: 600; color: var(--cobalt); }
 
   .item-vi {
     font-family: var(--names);
@@ -239,6 +278,16 @@
 
 /*SHARED_SCREEN:footer-brand*/
 
+  footer nav {
+    display: flex;
+    justify-content: center;
+    gap: 1.1rem;
+    margin-bottom: 0.9rem;
+    font-size: 0.8rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
   footer a {
     color: var(--cobalt);
     font-weight: 600;
@@ -278,25 +327,29 @@
 /*SHARED_PRINT:keep*/
     .drip { display: none; }
 /*SHARED_PRINT:color*/
+    /* Filled pills in print: the cream screen fill vanishes against the
+       printed page, so print tints each pill with its own ring color. */
+    .tag.nong { background: #F0D7D4; }
+    .tag.da   { background: #D2D7E0; }
     footer a { border-bottom: none; }
+    footer nav { display: none; }
 /*SHARED_PRINT:pdf-link*/
     .own-page { break-before: page; }
 /*SHARED_PRINT:header*/
-    /* The bar sheet spends its one-page slack as whitespace (user direction
-       2026-09-07): the head and section breathe while the 16px root stays. */
-    header { padding: 2.2rem 1rem 2.4rem; }
-    .seal { margin-top: 1.4rem; }
-    section { margin-top: 4rem; }
-    .section-head { padding-bottom: 0.8rem; margin-bottom: 1.6rem; }
-    .items { column-gap: 1.6rem; row-gap: 3.4rem; margin-top: 1.6rem; }
-    .item-name { font-size: 0.98rem; }
-    .item-desc, .item-vi { font-size: 0.78rem; }
-    .item-desc { margin-top: 1.3rem; }
-    .section-note { margin: 0.35rem 0 0.7rem; font-size: 0.8rem; }
-    /* The links-only footer paragraph tips browser prints onto a blank
-       second sheet; paper has no use for the links either. */
-    footer p + p { display: none; }
-    body { line-height: 1.7; }
+    section { margin-top: 0.72rem; }
+    h2 { font-size: 1.1rem; }
+    .section-head { padding-bottom: 3px; margin-bottom: 0.15rem; }
+    .items { column-gap: 1.4rem; row-gap: 0; margin-top: 0.3rem; }
+    .item-name { font-size: 0.92rem; }
+    .item-desc, .item-vi { font-size: 0.72rem; }
+    .item-desc { margin-top: 0.1rem; }
+    .item-vi { margin-top: 0.03rem; }
+    .price { font-size: 0.7rem; }
+    /* White stock swallows the hairline-tint separator; the muted ink
+       keeps it present but subordinate to both numbers. */
+    .price-sep { color: var(--ink-muted); }
+    .section-note { margin: 0.2rem 0 0.35rem; font-size: 0.75rem; }
+    body { line-height: 1.25; }
 /*SHARED_PRINT:footer*/
   }
 </style>
@@ -305,28 +358,33 @@
 <div class="card">
 
   <header>
-    <p class="eyebrow">nhà làm · est. quán nhà</p>
+    <p class="eyebrow">giá vốn · giá bán gợi ý</p>
     <h1>CAFE ÔNG THỌ</h1>
-    <p class="tagline">cocktails &middot; sau 5 giờ</p>
+    <p class="tagline">bảng giá tham khảo &middot; cà phê &middot; trà &middot; mát-cha &middot; giải khát</p>
     <span class="seal" aria-hidden="true">THỌ</span>
   </header>
 
-  <section>
-    <div class="section-head">
-      <h2>COCKTAILS</h2>
-      <span class="section-en">Sau 5 giờ</span>
-    </div>
-    <div class="items">
-<!--ITEMS-->
-    </div>
-  </section>
+  <p class="section-note">giá vốn là ước tính để lập kế hoạch, giá bán gợi ý là giá bán lẻ đề xuất · cost is a planning estimate, the menu price is the suggested retail</p>
+
+  <!--SECTIONS-->
+
+  <!-- item-line price microformat, appended by the renderer after any pills:
+       <span class="price"><span class="price-cost">$0.33</span><span class="price-sep">·</span><span class="price-menu">$1.17</span></span> -->
 
   <footer>
-    <p class="footer-brand">nhà làm &middot; made in house</p>
-    <p><a href="menu.html">The Drink Menu</a> &middot; <a href="kitchen.html">The Kitchen Menu</a> &middot; <a href="pantry.html">The Pantry List</a> &middot; <a href="prices.html">Giá</a></p>
-    <a class="pdf-link" href="bar.pdf">PDF View</a>
+    <nav aria-label="menu navigation">
+      <a href="menu.html">Thực Đơn</a>
+      <a href="prices/compact.html">In</a>
+      <a href="kitchen.html">Bếp</a>
+      <a href="bar.html">Bar</a>
+      <a href="pantry.html">Đi Chợ</a>
+      <a href="#" aria-current="page">Giá</a>
+    </nav>
+    <p class="footer-brand">CAFE ÔNG THỌ &middot; nhà làm &middot; made in house</p>
+    <a class="pdf-link" href="prices.pdf">PDF View</a>
   </footer>
 
 </div>
+
 </body>
 </html>

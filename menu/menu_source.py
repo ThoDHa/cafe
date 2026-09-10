@@ -29,6 +29,11 @@ SECTION_MAP = {
     "Refreshers": ("giai-khat", "Giải Khát", "Refreshers"),
 }
 KEM_SECTION = ("kem", "Kem", "Cold Foams")
+# The foam section's source heading in recipes cafe.md: the owner renamed
+# it "Cold Foams" → "Foams", so both spellings register and the parse
+# fails loudly when a file carries both at once. The Kem display title
+# stays KEM_SECTION's.
+KEM_SOURCE_TITLES = ("Foams", "Cold Foams")
 CATEGORY_ID_PREFIXES = {"kem": "kem"}
 
 KNOWN_NON_DRINK_SECTIONS = {
@@ -36,6 +41,7 @@ KNOWN_NON_DRINK_SECTIONS = {
     "Drink Matrix",
     "Pantry Staples",
     "Bases",
+    "Foams",
     "Cold Foams",
     "Presentation",
     "Drink Construction Rules",
@@ -1046,11 +1052,19 @@ def parse_menu(text: str) -> Menu:
                 f"add it to SECTION_MAP or KNOWN_NON_DRINK_SECTIONS in menu/menu_source.py"
             )
     kem_id, kem_vi, kem_en = KEM_SECTION
-    foam_lines = top_sections.get("Cold Foams", [])
-    if "Cold Foams" in top_sections:
+    kem_titles_present = [
+        title for title in KEM_SOURCE_TITLES if title in top_sections
+    ]
+    if len(kem_titles_present) > 1:
+        raise UnmappedSectionError(
+            f"recipes carries foam sections under both "
+            f"{kem_titles_present[0]!r} and {kem_titles_present[1]!r}; "
+            "exactly one foam section is expected"
+        )
+    if kem_titles_present:
         mapped[kem_id] = Section(
             id=kem_id, title_vi=kem_vi, title_en=kem_en,
-            items=parse_foam_section(foam_lines),
+            items=parse_foam_section(top_sections[kem_titles_present[0]]),
         )
     order = [spec[0] for spec in SECTION_MAP.values()] + [kem_id]
     return Menu(sections=[mapped[section_id] for section_id in order if section_id in mapped])

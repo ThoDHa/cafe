@@ -29,13 +29,13 @@ jobs:
       - name: Run generator tests
         env:
           RECIPES_CAFE: recipes/cafe.md
-        run: uv run --with pytest --with weasyprint==70.0 pytest site/ -q
+        run: uv run --with pytest --with weasyprint==70.0 --with openpyxl pytest site/ -q
       - name: Install pinned Chrome headless shell
         run: npx -y playwright@1.63.0 install --with-deps chromium-headless-shell
       - name: Generate menus site
-        run: uv run --with weasyprint==70.0 python site/generate.py --recipes recipes/cafe.md
+        run: uv run --with weasyprint==70.0 --with openpyxl python site/generate.py --recipes recipes/cafe.md
       - name: Verify no-JS print budget in Chrome (gates deploy)
-        run: uv run --with weasyprint==70.0 --with playwright==1.62.0 --with pypdf python site/verify_no_js_print.py --out site/public
+        run: uv run --with weasyprint==70.0 --with openpyxl --with playwright==1.62.0 --with pypdf python site/verify_no_js_print.py --out site/public
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site/public

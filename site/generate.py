@@ -12,18 +12,28 @@ is generated from the recipes README index over the dish files, with the
 same overrides file holding the curated names, merges, and copy. The
 pantry page is generated from recipes/cafe_pantry.md: the `##` buying
 groups become sections under curated Vietnamese leads held here, and each
-bullet's buy spec rides the item's subtitle slot. This module keeps only
-the site's own concerns: section blurbs, templates, rendering, and the
-print-budget fit.
+bullet's buy spec rides the item's subtitle slot. The priced pages are
+generated from the same cafe.md drinks joined with the cost workbook
+(recipes/cafe_costs.xlsx, read through pricing_source.py): every non-Kem
+drink (Bạc Xỉu included, inserted after its anchor when cafe.md defines
+it only as a variation) renders with its cost and its suggested retail
+price exactly as the workbook evaluates them on the priced pages, while
+the main drinks menu and its compact twin carry the same join's
+suggested retail alone and the Kem cold-foam builds stay unpriced; a row
+or drink the join cannot match fails the build loudly. This module keeps
+only the site's own concerns: section blurbs, templates, rendering, and
+the print-budget fit.
 
-Usage: uv run --with weasyprint python site/generate.py [--recipes PATH] [--out DIR]
+Usage: uv run --with weasyprint --with openpyxl python site/generate.py [--recipes PATH] [--out DIR]
 
 The build also enforces print budgets: weasyprint renders each page and the
-print root font size steps down until the drinks, kitchen, and pantry pages
-fit two A4 and Letter pages and the compact and bar pages fit one, failing
-the build if the 11px floor cannot satisfy the budget. The same pass renders
+print root font size steps down until the drinks, kitchen, pantry, and
+prices pages fit two A4 and Letter pages and the compact, bar, and
+prices-compact pages fit one, failing the build if the 11px floor cannot
+satisfy the budget. The same pass renders
 each menu to a print-ready PDF next to its HTML (menu.pdf, menu/compact.pdf,
-bar.pdf, kitchen.pdf, pantry.pdf): the PDF carries the brand line in an
+bar.pdf, kitchen.pdf, pantry.pdf, prices.pdf, prices/compact.pdf): the PDF
+carries the brand line in an
 @page bottom margin box
 on every page, which browsers cannot do in their print preview, so the PDF
 is the print path. Pass --no-fit-pages to skip this pass (used by fast
@@ -45,7 +55,9 @@ import json
 import math
 import re
 import sys
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import dataclass, field, replace
+from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -59,6 +71,7 @@ DEFAULT_OVERRIDES = SITE_DIR / "menu-overrides.json"
 sys.path.insert(0, str(MENU_DIR))
 
 import menu_source  # noqa: E402
+import pricing_source  # noqa: E402
 from menu_source import (  # noqa: E402,F401
     HEADING_RE,
     Item,
@@ -83,6 +96,11 @@ BAR_PAGE_BUDGET = 1
 # The pantry page is a dense buying list; like the kitchen menu it is
 # allowed to spill past one sheet, so it answers to the two-page budget.
 PANTRY_PAGE_BUDGET = 2
+# The priced pages answer to the same budgets as their unpriced twins:
+# the regular page like the drinks menu (two sheets), the priced compact
+# page like the compact menu (one sheet).
+PRICES_PAGE_BUDGET = 2
+PRICES_COMPACT_PAGE_BUDGET = 1
 # The print PDF of each page answers to the same page budget as the HTML
 # print: the fit pass guarantees it at the fitted root, and the render gate
 # below fails the build loudly if the artifact ever drifts over budget.
@@ -92,6 +110,8 @@ PDF_PAGE_BUDGETS = {
     "bar.pdf": BAR_PAGE_BUDGET,
     "kitchen.pdf": PRINT_PAGE_BUDGET,
     "pantry.pdf": PANTRY_PAGE_BUDGET,
+    "prices.pdf": PRICES_PAGE_BUDGET,
+    "prices/compact.pdf": PRICES_COMPACT_PAGE_BUDGET,
 }
 PRINT_ROOT_DEFAULT = 16.0
 PRINT_ROOT_FLOOR = 11.0
@@ -116,6 +136,13 @@ PRINT_HEADROOM_STEPS = {
     "bar.html": 1,
     "kitchen.html": 1,
     "pantry.html": 1,
+    # The priced pages mirror their unpriced twins' calibration, raised
+    # where the Chrome sensor measures more drift: the regular page one
+    # whole-px step; the priced compact page needed a third 0.25 step
+    # (Chrome split its letter print at the shipped 13.5px root after
+    # the drink count grew to 32) where the unpriced compact keeps two.
+    "prices.html": 1,
+    "prices/compact.html": 3,
 }
 PAPER_SIZES = ("a4", "letter")
 PRINT_FIT_SEARCH_SIZE = "letter"
@@ -345,10 +372,7 @@ def parse_section_note(lines: list[str]) -> str | None:
 
 
 def source_title_by_section_id() -> dict[str, str]:
-    titles = {spec[0]: source_title for source_title, spec in SECTION_MAP.items()}
-    kem_id, _, _ = menu_source.KEM_SECTION
-    titles[kem_id] = "Cold Foams"
-    return titles
+    return {spec[0]: source_title for source_title, spec in SECTION_MAP.items()}
 
 
 def parse_menu(text: str) -> Menu:
@@ -409,10 +433,11 @@ def shows_english_subtitle(item: Item) -> bool:
     )
 
 
-def render_item(item: Item, show_pills: bool) -> str:
+def render_item(item: Item, show_pills: bool, line_suffix: str = "") -> str:
     line = f'<span class="item-name">{html.escape(item_lead(item))}</span>'
     if show_pills:
         line += render_pills(item.temperatures)
+    line += line_suffix
     parts = [f'<div class="item">', f'  <div class="item-line">{line}</div>']
     if shows_english_subtitle(item):
         parts.append(f'  <p class="item-vi">{html.escape(item.name_en)}</p>')
@@ -523,11 +548,20 @@ MENU_PAGE_BREAK_SECTION_ID = "mat-cha"
 OWN_PAGE_CSS_CLASS = "own-page"
 
 
-def render_menu_page(menu: Menu) -> str:
+def render_menu_page(
+    menu: Menu, costs: dict[str, pricing_source.DrinkCost] | None = None
+) -> str:
+    """Render the drinks menu: the parsed sections, with the joined
+    selling price on every non-Kem item line when the joined costs are
+    given (the workbook prices no foams, so Kem stays unpriced)."""
+
     template = read_template("menu.html")
     sections_html = "\n".join(
         render_section(
             section,
+            None
+            if costs is None
+            else selling_price_item_renderer(costs, section.show_pills),
             css_class=(
                 OWN_PAGE_CSS_CLASS
                 if section.id == MENU_PAGE_BREAK_SECTION_ID
@@ -539,10 +573,268 @@ def render_menu_page(menu: Menu) -> str:
     return template.replace("<!--SECTIONS-->", sections_html)
 
 
-def render_compact_page(menu: Menu) -> str:
+def render_compact_page(
+    menu: Menu, costs: dict[str, pricing_source.DrinkCost] | None = None
+) -> str:
+    """Render the compact drinks menu: the parsed sections at three-column
+    density, with the joined selling price on every non-Kem item line when
+    the joined costs are given."""
+
     template = read_template("compact.html")
     sections_html = "\n".join(
-        render_section(section, columns=3) for section in menu.sections
+        render_section(
+            section,
+            None
+            if costs is None
+            else selling_price_item_renderer(costs, section.show_pills),
+            columns=3,
+        )
+        for section in menu.sections
+    )
+    return template.replace("<!--SECTIONS-->", sections_html)
+
+
+class PriceJoinError(Exception):
+    """Raised when the workbook's priced rows and cafe.md's drinks cannot be joined."""
+
+
+# The house white coffee's workbook spelling is volatile (the
+# descriptive row is "Bạc Xỉu (House Latte variant)" while cafe.md's
+# drink keeps the Vietnamese name), so the join recognizes the drink
+# and its workbook row by either of the curated item's names, plus the
+# workbook's descriptive row name.
+BAC_XIU_WORKBOOK_NAME = "Bạc Xỉu (House Latte variant)"
+BAC_XIU_ITEM_NAMES = frozenset(
+    {pricing_source.BAC_XIU.name_en, pricing_source.BAC_XIU.name_vi}
+)
+BAC_XIU_ROW_NAMES = BAC_XIU_ITEM_NAMES | {BAC_XIU_WORKBOOK_NAME}
+
+
+def workbook_row_menu_name(
+    workbook_name: str, bac_xiu_menu_name: str | None, menu_names: set[str]
+) -> str:
+    """Resolve a workbook row name to the name of the menu drink it prices.
+
+    Identity first: a row whose name is already a menu drink's name
+    prices that drink. Only when no drink carries the row's name does
+    the curated alias map resolve renamed drinks. Any of the Bạc Xỉu
+    row namings resolves onto the menu's Bạc Xỉu drink or, when cafe.md
+    has none, onto the name the join's inserted item will carry.
+    """
+
+    if workbook_name in BAC_XIU_ROW_NAMES:
+        if bac_xiu_menu_name is not None:
+            return bac_xiu_menu_name
+        return pricing_source.BAC_XIU.name_en
+    if workbook_name in menu_names:
+        return workbook_name
+    return pricing_source.PRICE_ALIASES.get(workbook_name, workbook_name)
+
+
+def join_prices(
+    menu: Menu, costs: list[pricing_source.DrinkCost]
+) -> tuple[list[Section], dict[str, pricing_source.DrinkCost]]:
+    """Join the workbook's priced rows onto the menu's drink sections.
+
+    Returns the four drink sections (the Kem cold-foam section excluded:
+    the workbook prices no foams) plus each priced item's workbook row
+    keyed by item name. Bạc Xỉu appears exactly once: cafe.md usually
+    describes it only as a House Latte variation, so there the join
+    inserts the curated BAC_XIU item right after its anchor; when
+    cafe.md defines the drink natively (under either of its known
+    names), the native item is priced in its own place and nothing is
+    inserted. The parsed menu is never mutated: the priced sections are
+    copies, so the unpriced pages stay insertion-free. A workbook row
+    that resolves to no menu drink, a menu drink with no workbook row,
+    or a missing or duplicated Bạc Xỉu anchor on the insertion path
+    raises ``PriceJoinError`` listing every unmatched name, so a
+    cafe.md or workbook rename fails the build loudly instead of
+    shipping a silently unpriced line.
+    """
+
+    kem_id = menu_source.KEM_SECTION[0]
+    drink_sections = [
+        section for section in menu.sections if section.id != kem_id
+    ]
+
+    def is_bac_xiu_item(item: Item) -> bool:
+        return (
+            item.name_en in BAC_XIU_ITEM_NAMES
+            or item.name_vi in BAC_XIU_ITEM_NAMES
+        )
+
+    bac_xiu_menu_name: str | None = next(
+        (
+            item.name_en
+            for section in drink_sections
+            for item in section.items
+            if is_bac_xiu_item(item)
+        ),
+        None,
+    )
+    priced_sections = []
+    anchor_found = False
+    for section in drink_sections:
+        if bac_xiu_menu_name is None:
+            items: list[Item] = []
+            for item in section.items:
+                items.append(item)
+                if item.name_en == pricing_source.BAC_XIU_ANCHOR:
+                    if anchor_found:
+                        raise PriceJoinError(
+                            "cafe.md carries more than one "
+                            f"{pricing_source.BAC_XIU_ANCHOR!r} drink; the "
+                            "priced pages anchor Bạc Xỉu after exactly one "
+                            "of them"
+                        )
+                    items.append(pricing_source.BAC_XIU)
+                    anchor_found = True
+        else:
+            items = list(section.items)
+        priced_sections.append(replace(section, items=items))
+    if bac_xiu_menu_name is None and not anchor_found:
+        raise PriceJoinError(
+            f"cafe.md has no {pricing_source.BAC_XIU_ANCHOR!r} drink; the "
+            "priced pages insert Bạc Xỉu right after it"
+        )
+    priced_names = [
+        item.name_en for section in priced_sections for item in section.items
+    ]
+    menu_names = set(priced_names)
+    costs_by_name: dict[str, pricing_source.DrinkCost] = {}
+    unmatched_workbook: list[str] = []
+    for row in costs:
+        menu_name = workbook_row_menu_name(
+            row.name, bac_xiu_menu_name, menu_names
+        )
+        if menu_name not in priced_names:
+            unmatched_workbook.append(row.name)
+            continue
+        if menu_name in costs_by_name:
+            raise PriceJoinError(
+                f"workbook rows {costs_by_name[menu_name].name!r} and "
+                f"{row.name!r} both map to the {menu_name!r} menu drink"
+            )
+        costs_by_name[menu_name] = row
+    unpriced_menu = [
+        name for name in priced_names if name not in costs_by_name
+    ]
+    if unmatched_workbook or unpriced_menu:
+        raise PriceJoinError(
+            "the cost workbook and cafe.md disagree; workbook rows with "
+            "no menu drink: "
+            + (", ".join(unmatched_workbook) or "(none)")
+            + "; menu drinks with no workbook row: "
+            + (", ".join(unpriced_menu) or "(none)")
+        )
+    return priced_sections, costs_by_name
+
+
+CENT = Decimal("0.01")
+
+
+def format_price(value: float) -> str:
+    """Format one workbook value as the pages' $X.XX price text.
+
+    A half-cent rounds half up: the pages mirror the workbook's own
+    displayed cents, which Python's round-half-even float rounding
+    would miss.
+    """
+
+    return f"${Decimal(str(value)).quantize(CENT, rounding=ROUND_HALF_UP):.2f}"
+
+
+def render_price_cluster(cost: pricing_source.DrinkCost) -> str:
+    """Render the item-line price cluster: cost, separator, suggested retail."""
+
+    return (
+        '<span class="price">'
+        f'<span class="price-cost">{format_price(cost.cost)}</span>'
+        '<span class="price-sep">·</span>'
+        f'<span class="price-menu">{format_price(cost.suggested)}</span>'
+        "</span>"
+    )
+
+
+def render_selling_price(cost: pricing_source.DrinkCost) -> str:
+    """Render the item-line single selling price: the workbook's Menu
+    Price, the SRP, formatted like the prices pair's suggested figure."""
+
+    return (
+        '<span class="price">'
+        f'<span class="price-menu">{format_price(cost.suggested)}</span>'
+        "</span>"
+    )
+
+
+def priced_item_renderer(
+    costs: dict[str, pricing_source.DrinkCost], show_pills: bool
+) -> Callable[[Item], str]:
+    """Build an item renderer that appends the price cluster after any pills."""
+
+    def render(item: Item) -> str:
+        return render_item(
+            item, show_pills, line_suffix=render_price_cluster(costs[item.name_en])
+        )
+
+    return render
+
+
+def selling_price_item_renderer(
+    costs: dict[str, pricing_source.DrinkCost], show_pills: bool
+) -> Callable[[Item], str]:
+    """Build an item renderer that appends the single selling price after
+    any pills.
+
+    Items with no joined row (the Kem cold-foam builds: the workbook
+    prices no foams) render with no price suffix; the loud join has
+    already guaranteed every drink row exists.
+    """
+
+    def render(item: Item) -> str:
+        cost = costs.get(item.name_en)
+        suffix = render_selling_price(cost) if cost is not None else ""
+        return render_item(item, show_pills, line_suffix=suffix)
+
+    return render
+
+
+def render_prices_page(
+    sections: list[Section], costs: dict[str, pricing_source.DrinkCost]
+) -> str:
+    """Render the regular priced page: the menu's two-column sections with prices.
+
+    The page mirrors the drinks menu's print shape, including the
+    Mát-cha print page break, through the priced template.
+    """
+
+    template = read_template("prices.html")
+    sections_html = "\n".join(
+        render_section(
+            section,
+            priced_item_renderer(costs, section.show_pills),
+            css_class=(
+                OWN_PAGE_CSS_CLASS
+                if section.id == MENU_PAGE_BREAK_SECTION_ID
+                else None
+            ),
+        )
+        for section in sections
+    )
+    return template.replace("<!--SECTIONS-->", sections_html)
+
+
+def render_prices_compact_page(
+    sections: list[Section], costs: dict[str, pricing_source.DrinkCost]
+) -> str:
+    """Render the compact priced page: the compact three-column density with prices."""
+
+    template = read_template("prices-compact.html")
+    sections_html = "\n".join(
+        render_section(
+            section, priced_item_renderer(costs, section.show_pills), columns=3
+        )
+        for section in sections
     )
     return template.replace("<!--SECTIONS-->", sections_html)
 
@@ -714,7 +1006,7 @@ def _load_weasyprint() -> tuple[type, type]:
     except ImportError as exc:
         raise RuntimeError(
             "print fitting requires weasyprint; run the generator via "
-            "'uv run --with weasyprint python site/generate.py'"
+            "'uv run --with weasyprint --with openpyxl python site/generate.py'"
         ) from exc
     return CSS, HTML
 
@@ -891,9 +1183,20 @@ def build_site(
         f"kitchen: {sum(len(s.items) for s in kitchen_menu.sections)} dishes "
         f"from {readme_path.name}"
     )
+    costs_path = recipes_path.parent / "cafe_costs.xlsx"
+    if not costs_path.is_file():
+        raise RuntimeError(
+            f"missing {costs_path}; the priced pages are generated from it"
+        )
+    drink_costs = pricing_source.read_drink_costs(costs_path)
+    priced_sections, prices_by_name = join_prices(menu, drink_costs)
+    print(
+        f"prices: {len(prices_by_name)} menu drinks priced from "
+        f"{len(drink_costs)} workbook rows in {costs_path.name}"
+    )
     out_dir.mkdir(parents=True, exist_ok=True)
     fitted: list[tuple[str, float]] = []
-    menu_page = render_menu_page(menu)
+    menu_page = render_menu_page(menu, prices_by_name)
     if fit_pages:
         menu_page, menu_root = fit_print_root(
             menu_page,
@@ -903,7 +1206,7 @@ def build_site(
         fitted.append(("index.html", menu_root))
     (out_dir / "index.html").write_text(menu_page)
     (out_dir / "menu.html").write_text(menu_page)
-    compact_page = render_compact_page(menu)
+    compact_page = render_compact_page(menu, prices_by_name)
     if fit_pages:
         compact_page, compact_root = fit_print_root(
             compact_page,
@@ -915,6 +1218,30 @@ def build_site(
         fitted.append(("menu/compact.html", compact_root))
     (out_dir / "menu").mkdir(exist_ok=True)
     (out_dir / "menu" / "compact.html").write_text(compact_page)
+    prices_page = render_prices_page(priced_sections, prices_by_name)
+    if fit_pages:
+        prices_page, prices_root = fit_print_root(
+            prices_page,
+            label="prices.html",
+            max_pages=PRICES_PAGE_BUDGET,
+            headroom_steps=PRINT_HEADROOM_STEPS["prices.html"],
+        )
+        fitted.append(("prices.html", prices_root))
+    (out_dir / "prices.html").write_text(prices_page)
+    prices_compact_page = render_prices_compact_page(
+        priced_sections, prices_by_name
+    )
+    if fit_pages:
+        prices_compact_page, prices_compact_root = fit_print_root(
+            prices_compact_page,
+            label="prices/compact.html",
+            max_pages=PRICES_COMPACT_PAGE_BUDGET,
+            step=COMPACT_PRINT_ROOT_STEP,
+            headroom_steps=PRINT_HEADROOM_STEPS["prices/compact.html"],
+        )
+        fitted.append(("prices/compact.html", prices_compact_root))
+    (out_dir / "prices").mkdir(exist_ok=True)
+    (out_dir / "prices" / "compact.html").write_text(prices_compact_page)
     bar_page = render_bar_page(bar_items)
     if fit_pages:
         bar_page, bar_root = fit_print_root(
@@ -964,6 +1291,8 @@ def build_site(
         for pdf_name, page_html in (
             ("menu.pdf", menu_page),
             ("menu/compact.pdf", compact_page),
+            ("prices.pdf", prices_page),
+            ("prices/compact.pdf", prices_compact_page),
             ("bar.pdf", bar_page),
             ("kitchen.pdf", kitchen_page),
             ("pantry.pdf", pantry_page),
