@@ -209,21 +209,16 @@
   /* One cluster knob: children scale in em, so print and the fit walk
      resize the whole cluster from this rem value. */
   .price {
-    display: inline-flex;
+    display: flex;
     align-items: baseline;
     gap: 0.3rem;
-    /* Two auto margins in one flex line split the free space, so the
-       cluster pushes itself only on pill-less lines and rides the pills'
-       push on the rest. */
-    margin-left: auto;
     white-space: nowrap;
     font-size: 0.82rem;
     font-variant-numeric: tabular-nums;
   }
-  .tags + .price { margin-left: 0; }
   .price-cost { font-size: 0.95em; color: var(--ink-muted); }
   .price-sep  { color: var(--rule); }
-  .price-menu { font-size: 1.15em; font-weight: 600; color: var(--cobalt); }
+  .price-menu { font-size: 1.15em; font-weight: normal; color: var(--cobalt); }
 
   .item-vi {
     font-family: var(--names);
@@ -368,7 +363,8 @@
 
   <!--SECTIONS-->
 
-  <!-- item-line price microformat, appended by the renderer after any pills:
+  <!-- below-line price element, placed by the renderer between the item
+       line and the subtitle:
        <span class="price"><span class="price-cost">$0.33</span><span class="price-sep">·</span><span class="price-menu">$1.17</span></span> -->
 
   <footer>
@@ -379,6 +375,7 @@
       <a href="bar.html">Bar</a>
       <a href="pantry.html">Đi Chợ</a>
       <a href="#" aria-current="page">Giá</a>
+      <a href="prices/menu.html">Bảng Giá</a>
     </nav>
     <p class="footer-brand">CAFE ÔNG THỌ &middot; nhà làm &middot; made in house</p>
     <a class="pdf-link" href="prices.pdf">PDF View</a>

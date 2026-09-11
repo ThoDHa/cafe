@@ -56,11 +56,12 @@ import generate  # noqa: E402
 
 DEFAULT_RECIPES = generate.DEFAULT_RECIPES
 
-# The seven published pages and their print budgets, mirrored from the
+# The eight published pages and their print budgets, mirrored from the
 # generator's own budget constants so a budget change propagates here.
 PAGE_BUDGETS = {
     "menu.html": generate.PRINT_PAGE_BUDGET,
     "menu/compact.html": generate.COMPACT_PAGE_BUDGET,
+    "prices/menu.html": generate.PRINT_PAGE_BUDGET,
     "bar.html": generate.BAR_PAGE_BUDGET,
     "kitchen.html": generate.PRINT_PAGE_BUDGET,
     "pantry.html": generate.PANTRY_PAGE_BUDGET,

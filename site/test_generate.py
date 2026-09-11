@@ -1871,35 +1871,37 @@ class TestPricesRender:
         for name in ("prices.html", "prices/compact.html"):
             page = (no_fit_build / name).read_text()
             assert len(re.findall(r"<section[ >]", page)) == 4, name
-            assert page.count('<div class="item">') == expected_items, name
-            # Counted inside the item lines because each template carries
-            # the contract cluster once more as an HTML-comment sample.
-            line_blocks = re.findall(r'<div class="item-line">.*?</div>', page, re.S)
-            assert len(line_blocks) == expected_items, name
-            priced = [
-                block for block in line_blocks if '<span class="price">' in block
+            sections = re.findall(r"<section[ >].*?</section>", page, re.S)
+            blocks = [
+                block for section in sections for block in item_blocks(section)
             ]
-            assert len(priced) == expected_items, name
+            assert len(blocks) == expected_items, name
+            for block in blocks:
+                assert block.count('<span class="price">') == 1, (
+                    f"{name}: every drink item shows exactly one price "
+                    f"cluster; got {block[:120]!r}"
+                )
             assert ">KEM<" not in page, name
 
-    def test_black_coffee_line_carries_the_workbook_clusters(self, no_fit_build):
+    def test_black_coffee_item_carries_the_workbook_clusters(self, no_fit_build):
         _, costs = joined_prices()
         cluster = price_cluster_text(costs["Black Coffee"])
         for name in ("prices.html", "prices/compact.html"):
             page = (no_fit_build / name).read_text()
-            assert cluster in page, name
+            block = item_block_for_name(page, "Black Coffee")
+            assert cluster in block, name
+            assert block.count('<span class="price">') == 1, name
 
-    def test_bac_xiu_line_rides_its_own_workbook_row(self, no_fit_build):
+    def test_bac_xiu_item_rides_its_own_workbook_row(self, no_fit_build):
         _, costs = joined_prices()
         cluster = price_cluster_text(costs[bac_xiu_menu_name() or "Bạc Xỉu"])
         page = (no_fit_build / "prices.html").read_text()
         name_at = page.index(">Cà Phê Bạc Xỉu<")
-        next_item_at = page.index('<div class="item">', name_at)
-        line_block = page[name_at:next_item_at]
-        assert cluster in line_block
-        assert line_block.index('<span class="tags">') < line_block.index(
-            '<span class="price">'
-        ), "the price cluster must sit after the pills in the item line"
+        block = item_block_for_name(page, "Cà Phê Bạc Xỉu")
+        assert cluster in block
+        assert block.index('<span class="price">') > block.index("</div>"), (
+            "the price cluster must sit below the item line, not inside it"
+        )
         ca_phe_at = page.index(">CÀ PHÊ<")
         tra_at = page.index(">TRÀ<")
         assert ca_phe_at < name_at < tra_at, (
@@ -1911,9 +1913,8 @@ class TestPricesRender:
         _, costs = joined_prices()
         cluster = price_cluster_text(costs["Pour Over Coffee"])
         page = (no_fit_build / "prices.html").read_text()
-        name_at = page.index(">Cà Phê Pha Tay<")
-        line_block = page[name_at : page.index('class="item-vi">Pour Over Coffee<')]
-        assert cluster in line_block
+        block = item_block_for_name(page, "Cà Phê Pha Tay")
+        assert cluster in block
 
     def test_regular_prices_page_breaks_print_at_mat_cha_only(self):
         sections, costs = joined_prices()
@@ -1934,6 +1935,127 @@ class TestPricesRender:
         assert "<title>Cafe Ông Thọ · Giá · In</title>" in compact
         assert 'href="prices.pdf">PDF View</a>' in regular
         assert 'href="compact.pdf">PDF View</a>' in compact
+        priced_menu = (no_fit_build / "prices/menu.html").read_text()
+        assert "<title>Cafe Ông Thọ · Bảng Giá</title>" in priced_menu
+        assert 'href="menu.pdf">PDF View</a>' in priced_menu
+
+    def test_price_sits_below_the_item_line_above_subtitle_and_description(
+        self, no_fit_build
+    ):
+        for name in ("prices/menu.html", "prices.html", "prices/compact.html"):
+            page = (no_fit_build / name).read_text()
+            block = item_block_for_name(page, "Black Coffee")
+            line_close = block.index("</div>")
+            price_at = block.index('<span class="price">')
+            vi_at = block.index('class="item-vi"')
+            desc_at = block.index('class="item-desc"')
+            assert line_close < price_at < vi_at < desc_at, (
+                f"{name}: the price must render as its own element between "
+                "the item line and the subtitle/description"
+            )
+
+
+class TestPricesMenuPage:
+    """The priced customer menu: the drinks-menu layout, selling price only.
+
+    Owner direction 2026-09-10: prices/menu.html carries the drink-menu
+    layout with one selling price per non-Kem drink on its own line below
+    the item line; no cost figure, separator, or planning legend rides the
+    page; the Kem cold-foam builds stay unpriced.
+    """
+
+    def test_priced_menu_page_exists_in_the_build(self, no_fit_build):
+        assert (no_fit_build / "prices/menu.html").is_file()
+
+    def test_priced_menu_carries_one_selling_price_per_non_kem_drink(
+        self, no_fit_build
+    ):
+        menu = generate.parse_menu(RECIPES_CAFE.read_text())
+        kem_id = menu_source.KEM_SECTION[0]
+        expected_total = sum(
+            len(s.items) for s in menu.sections if s.id != kem_id
+        )
+        page = (no_fit_build / "prices/menu.html").read_text()
+        counted = page.count('<span class="price">')
+        assert counted == expected_total, (
+            f"expected exactly one selling price per non-Kem drink "
+            f"({expected_total}); counted {counted}"
+        )
+        sections = re.findall(r"<section[ >].*?</section>", page, re.S)
+        assert len(sections) == len(menu.sections), "the Kem section renders too"
+        for section in sections:
+            blocks = item_blocks(section)
+            if ">KEM<" in section:
+                assert not any(
+                    '<span class="price">' in block for block in blocks
+                ), "the Kem section carries no price display"
+                continue
+            for block in blocks:
+                assert block.count('<span class="price">') == 1, block[:120]
+
+    def test_black_coffee_carries_the_workbook_selling_price(self, no_fit_build):
+        _, costs = joined_prices()
+        price = selling_price_text(costs["Black Coffee"])
+        page = (no_fit_build / "prices/menu.html").read_text()
+        block = item_block_for_name(page, "Black Coffee")
+        assert price in block
+        assert block.count('<span class="price">') == 1
+
+    def test_priced_menu_carries_no_cost_figures_separators_or_legend(self):
+        menu = generate.parse_menu(RECIPES_CAFE.read_text())
+        _, costs = joined_prices()
+        page = generate.render_prices_menu_page(menu, costs)
+        assert "price-cost" not in page
+        assert "price-sep" not in page
+        assert "giá vốn" not in page
+        assert "ước tính để lập kế hoạch" not in page
+
+    def test_priced_menu_breaks_print_at_mat_cha_only(self):
+        menu = generate.parse_menu(RECIPES_CAFE.read_text())
+        _, costs = joined_prices()
+        page = generate.render_prices_menu_page(menu, costs)
+        tagged = re.findall(
+            r'<section class="own-page">\s*<div class="section-head">\s*'
+            r"<h2>([^<]+)</h2>",
+            page,
+        )
+        assert tagged == ["MÁT-CHA"]
+
+    def test_priced_menu_marks_itself_current_and_links_its_pdf(
+        self, no_fit_build
+    ):
+        page = (no_fit_build / "prices/menu.html").read_text()
+        assert '<a href="#" aria-current="page">Bảng Giá</a>' in page
+        assert '<a class="pdf-link" href="menu.pdf">PDF View</a>' in page
+        assert '<a href="../menu.html">Thực Đơn</a>' in page
+        assert '<a href="prices.html">Giá</a>' in page
+
+
+class TestPriceWeight:
+    """The menu price figure reads at description weight, not heavier.
+
+    Owner direction 2026-09-10: the price keeps its cobalt color and
+    1.15em size but carries the same normal (400) weight as the item
+    descriptions, on every page that renders a price.
+    """
+
+    WEIGHT_RULE = (
+        ".price-menu { font-size: 1.15em; font-weight: normal; "
+        "color: var(--cobalt); }"
+    )
+
+    def test_price_menu_weight_is_normal_on_every_priced_page(
+        self, no_fit_build
+    ):
+        for name in ("prices/menu.html", "prices.html", "prices/compact.html"):
+            page = (no_fit_build / name).read_text()
+            assert self.WEIGHT_RULE in page, (
+                f"{name}: the price figure must carry the normal (400) "
+                "weight, matching the item descriptions"
+            )
+            assert (
+                ".price-menu { font-size: 1.15em; font-weight: 600" not in page
+            ), f"{name}: the heavy 600 price weight must be gone"
 
     def test_priced_item_text_is_escaped(self):
         sections, costs = joined_prices()
@@ -1958,87 +2080,76 @@ def selling_price_text(cost: pricing_source.DrinkCost) -> str:
     )
 
 
-def item_line_block_for_name(page: str, name_en: str) -> str:
-    """Return one built page's item-line block for a drink's English name.
+def item_blocks(section_html: str) -> list[str]:
+    """Split one rendered section into its .item element blocks.
+
+    The lookahead keeps each block from one item's opening div to just
+    before the next item (or the section close for the last one), so
+    price markup can be counted per item element.
+    """
+
+    return re.findall(
+        r'<div class="item">.*?(?=<div class="item">|</section>)',
+        section_html,
+        re.S,
+    )
+
+
+def item_block_for_name(page: str, name_en: str) -> str:
+    """Return one built page's .item element block for a drink's English name.
 
     The English name leads the line when it is the display name and sits
-    in the item-vi subtitle otherwise; either way its line block is the
-    nearest .item-line opening before the name.
+    in the item-vi subtitle otherwise; the block runs from the item's
+    opening div to just before the next item or the section close.
     """
 
     subtitle_at = page.find(f'class="item-vi">{name_en}<')
     anchor_at = (
         subtitle_at if subtitle_at != -1 else page.index(f">{name_en}<")
     )
-    line_start = page.rindex('<div class="item-line">', 0, anchor_at)
-    line_end = page.index("</div>", line_start)
-    return page[line_start : line_end + len("</div>")]
+    block_start = page.rindex('<div class="item">', 0, anchor_at)
+    return item_blocks(page[block_start:])[0]
 
 
-class TestMenuSellingPrices:
-    """The main menu pair carries one selling price per non-Kem drink.
+class TestCustomerPairUnpriced:
+    """The customer-facing drinks pair renders with no prices at all.
 
-    Option B (user direction 2026-09-11): selling price only, no cost,
-    no separator, no legend; the Kem cold-foam builds carry no price
-    display; the prices pair keeps cost plus SRP.
+    Owner direction 2026-09-10: the public menu guests see stays clean of
+    prices; priced references remain one click away under the Giá family
+    (the priced menu carries the selling price alone, the prices pair
+    carries cost plus suggested retail). The needles scan the whole built
+    page, so no price markup or price style rule can survive anywhere on
+    it, the Kem section included.
     """
 
-    def test_menu_pages_carry_one_price_per_non_kem_drink_and_none_in_kem(
+    def test_customer_pair_pages_carry_no_price_markup_anywhere(
+        self, no_fit_build
+    ):
+        for name in ("menu.html", "index.html", "menu/compact.html"):
+            page = (no_fit_build / name).read_text()
+            assert '<span class="price' not in page, (
+                f"{name}: the customer pair carries no price element"
+            )
+            assert "price-cost" not in page, name
+            assert "price-sep" not in page, name
+            assert "price-menu" not in page, name
+            assert ".price {" not in page, (
+                f"{name}: the price style rules die with the prices"
+            )
+            assert "giá vốn" not in page, name
+
+    def test_kem_section_renders_its_builds_on_every_customer_page(
         self, no_fit_build
     ):
         menu = generate.parse_menu(RECIPES_CAFE.read_text())
-        kem_id = menu_source.KEM_SECTION[0]
-        expected_total = sum(
-            len(s.items) for s in menu.sections if s.id != kem_id
+        leads = sorted(
+            {generate.item_lead(item) for item in menu.by_id("kem").items}
         )
         for name in ("menu.html", "index.html", "menu/compact.html"):
             page = (no_fit_build / name).read_text()
-            sections = re.findall(r"<section[ >].*?</section>", page, re.S)
-            assert len(sections) == len(menu.sections), name
-            priced_total = 0
-            for section in sections:
-                line_blocks = re.findall(
-                    r'<div class="item-line">.*?</div>', section, re.S
-                )
-                if ">KEM<" in section:
-                    assert not any(
-                        '<span class="price">' in block
-                        for block in line_blocks
-                    ), f"{name}: the Kem section carries no price display"
-                    continue
-                for block in line_blocks:
-                    assert block.count('<span class="price">') == 1, (
-                        f"{name}: every drink line shows exactly one "
-                        f"selling price; got {block[:120]!r}"
-                    )
-                priced_total += len(line_blocks)
-            assert priced_total == expected_total, (
-                f"{name}: every one of the {expected_total} non-kem drinks "
-                f"carries a selling price; counted {priced_total}"
-            )
-
-    def test_black_coffee_line_carries_the_workbook_selling_price(
-        self, no_fit_build
-    ):
-        _, costs = joined_prices()
-        price = selling_price_text(costs["Black Coffee"])
-        for name in ("menu.html", "menu/compact.html"):
-            page = (no_fit_build / name).read_text()
-            block = item_line_block_for_name(page, "Black Coffee")
-            assert price in block, name
-            assert block.count('<span class="price">') == 1, name
-            assert block.index('<span class="tags">') < block.index(
-                '<span class="price">'
-            ), f"{name}: the price must sit after the pills in the item line"
-
-    def test_menu_pages_carry_no_cost_figures_separators_or_legend(
-        self, no_fit_build
-    ):
-        for name in ("menu.html", "index.html", "menu/compact.html"):
-            page = (no_fit_build / name).read_text()
-            assert "price-cost" not in page, name
-            assert "price-sep" not in page, name
-            assert "giá vốn" not in page, name
+            assert ">KEM<" in page, name
+            for lead in leads:
+                assert lead in page, (name, lead)
 
     def test_index_stays_byte_identical_to_menu_html(self, no_fit_build):
         assert (no_fit_build / "index.html").read_bytes() == (
@@ -2400,6 +2511,7 @@ class TestPrintFit:
         assert set(generate.PRINT_HEADROOM_STEPS) == {
             "menu.html",
             "menu/compact.html",
+            "prices/menu.html",
             "bar.html",
             "kitchen.html",
             "pantry.html",
@@ -2410,6 +2522,7 @@ class TestPrintFit:
         assert generate.PRINT_HEADROOM_STEPS["prices/compact.html"] == 3
         for name in (
             "menu.html",
+            "prices/menu.html",
             "bar.html",
             "kitchen.html",
             "pantry.html",
@@ -2469,6 +2582,15 @@ class TestPageBudget:
                 size,
                 count,
             )
+        prices_menu_counts = generate.render_page_counts(
+            (out / "prices" / "menu.html").read_text()
+        )
+        for size, count in prices_menu_counts.items():
+            assert count <= generate.PRINT_PAGE_BUDGET, (
+                "prices/menu.html",
+                size,
+                count,
+            )
 
     def test_fit_build_writes_every_print_pdf_artifact(self, tmp_path):
         out = tmp_path / "public"
@@ -2515,6 +2637,7 @@ class TestPrintPdf:
         assert generate.PDF_PAGE_BUDGETS == {
             "menu.pdf": generate.PRINT_PAGE_BUDGET,
             "menu/compact.pdf": generate.COMPACT_PAGE_BUDGET,
+            "prices/menu.pdf": generate.PRINT_PAGE_BUDGET,
             "bar.pdf": generate.BAR_PAGE_BUDGET,
             "kitchen.pdf": generate.PRINT_PAGE_BUDGET,
             "pantry.pdf": generate.PANTRY_PAGE_BUDGET,
@@ -2528,6 +2651,7 @@ class TestPrintPdf:
         assert verify_no_js_print.PAGE_BUDGETS == {
             "menu.html": generate.PRINT_PAGE_BUDGET,
             "menu/compact.html": generate.COMPACT_PAGE_BUDGET,
+            "prices/menu.html": generate.PRINT_PAGE_BUDGET,
             "bar.html": generate.BAR_PAGE_BUDGET,
             "kitchen.html": generate.PRINT_PAGE_BUDGET,
             "pantry.html": generate.PANTRY_PAGE_BUDGET,
@@ -2644,6 +2768,7 @@ class TestPrintPdfLink:
             "index.html": "menu.pdf",
             "menu.html": "menu.pdf",
             "menu/compact.html": "compact.pdf",
+            "prices/menu.html": "menu.pdf",
             "kitchen.html": "kitchen.pdf",
             "bar.html": "bar.pdf",
             "pantry.html": "pantry.pdf",
@@ -2683,6 +2808,7 @@ class TestBuildSite:
             "index.html",
             "menu.html",
             "menu/compact.html",
+            "prices/menu.html",
             "kitchen.html",
             "bar.html",
             "pantry.html",
@@ -2734,6 +2860,7 @@ PUBLISHED_PAGES = (
     "index.html",
     "menu.html",
     "menu/compact.html",
+    "prices/menu.html",
     "kitchen.html",
     "bar.html",
     "pantry.html",
@@ -3069,21 +3196,43 @@ class TestPantryNavLinks:
             if name == "pantry.html":
                 continue
             page = (no_fit_build / name).read_text()
-            if name == "menu/compact.html" or name == "prices/compact.html":
+            if name in ("menu/compact.html", "prices/compact.html", "prices/menu.html"):
                 assert '<a href="../pantry.html">Đi Chợ</a>' in page, name
             else:
                 assert 'href="pantry.html"' in page, name
 
 
 class TestPricesNavLinks:
-    def test_every_existing_page_links_the_priced_pages(self, no_fit_build):
-        # The priced pages carry their own navs (the Giá entry is
-        # aria-current there); every pre-existing page gains a plain link.
+    def test_every_existing_page_links_the_cost_reference_pages(self, no_fit_build):
+        # The cost-reference pages carry their own navs (the Giá entry is
+        # aria-current there); every pre-existing page links them plainly.
         for name in ("index.html", "menu.html", "kitchen.html", "bar.html", "pantry.html"):
             page = (no_fit_build / name).read_text()
             assert '<a href="prices.html">Giá</a>' in page, name
         compact = (no_fit_build / "menu/compact.html").read_text()
         assert '<a href="../prices/compact.html">Giá</a>' in compact
+
+    def test_every_page_links_the_priced_menu(self, no_fit_build):
+        # The priced menu is nav-linked from every other nav-carrying page
+        # under one consistent label; its own nav marks it current. The
+        # bar, kitchen, and pantry pages carry no footer nav element (their
+        # cross-page links ride a footer paragraph), so they are outside
+        # this needle.
+        for name in ("index.html", "menu.html", "prices.html"):
+            page = (no_fit_build / name).read_text()
+            assert '<a href="prices/menu.html">Bảng Giá</a>' in page, name
+        assert (
+            '<a href="../prices/menu.html">Bảng Giá</a>'
+            in (no_fit_build / "menu/compact.html").read_text()
+        )
+        # prices/menu.html sits beside prices/compact.html, so the link is
+        # a same-directory sibling like that page's own PDF link.
+        assert (
+            '<a href="menu.html">Bảng Giá</a>'
+            in (no_fit_build / "prices/compact.html").read_text()
+        )
+        priced_menu = (no_fit_build / "prices/menu.html").read_text()
+        assert '<a href="#" aria-current="page">Bảng Giá</a>' in priced_menu
 
     def test_every_nav_carrying_page_marks_exactly_one_current_page(
         self, no_fit_build
@@ -3092,6 +3241,7 @@ class TestPricesNavLinks:
             "index.html",
             "menu.html",
             "menu/compact.html",
+            "prices/menu.html",
             "prices.html",
             "prices/compact.html",
         )

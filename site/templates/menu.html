@@ -206,22 +206,6 @@
      columns hold their x positions, while visibility paints it nothing. */
   .tag.slot { visibility: hidden; }
 
-  /* One price knob: the number scales in em, so print and the fit walk
-     resize the price from this rem value. */
-  .price {
-    display: inline-flex;
-    align-items: baseline;
-    /* Two auto margins in one flex line split the free space, so the
-       price pushes itself only on pill-less lines and rides the pills'
-       push on the rest. */
-    margin-left: auto;
-    white-space: nowrap;
-    font-size: 0.82rem;
-    font-variant-numeric: tabular-nums;
-  }
-  .tags + .price { margin-left: 0; }
-  .price-menu { font-size: 1.15em; font-weight: 600; color: var(--cobalt); }
-
   .item-vi {
     font-family: var(--names);
     font-style: italic;
@@ -341,7 +325,6 @@
     .item-desc, .item-vi { font-size: 0.72rem; }
     .item-desc { margin-top: 0.1rem; }
     .item-vi { margin-top: 0.03rem; }
-    .price { font-size: 0.7rem; }
     .section-note { margin: 0.2rem 0 0.35rem; font-size: 0.75rem; }
     body { line-height: 1.25; }
 /*SHARED_PRINT:footer*/
@@ -368,6 +351,7 @@
       <a href="bar.html">Bar</a>
       <a href="pantry.html">Đi Chợ</a>
       <a href="prices.html">Giá</a>
+      <a href="prices/menu.html">Bảng Giá</a>
     </nav>
     <p class="footer-brand">CAFE ÔNG THỌ &middot; nhà làm &middot; made in house</p>
     <a class="pdf-link" href="menu.pdf">PDF View</a>

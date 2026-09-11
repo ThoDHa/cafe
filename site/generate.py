@@ -17,9 +17,10 @@ generated from the same cafe.md drinks joined with the cost workbook
 (recipes/cafe_costs.xlsx, read through pricing_source.py): every non-Kem
 drink (Bạc Xỉu included, inserted after its anchor when cafe.md defines
 it only as a variation) renders with its cost and its suggested retail
-price exactly as the workbook evaluates them on the priced pages, while
-the main drinks menu and its compact twin carry the same join's
-suggested retail alone and the Kem cold-foam builds stay unpriced; a row
+price exactly as the workbook evaluates them on the cost-reference pages,
+the priced customer menu carries the same join's suggested retail alone
+on its own line under each drink, and the main drinks menu, its compact
+twin, and the Kem cold-foam builds stay unpriced; a row
 or drink the join cannot match fails the build loudly. This module keeps
 only the site's own concerns: section blurbs, templates, rendering, and
 the print-budget fit.
@@ -27,12 +28,13 @@ the print-budget fit.
 Usage: uv run --with weasyprint --with openpyxl python site/generate.py [--recipes PATH] [--out DIR]
 
 The build also enforces print budgets: weasyprint renders each page and the
-print root font size steps down until the drinks, kitchen, pantry, and
-prices pages fit two A4 and Letter pages and the compact, bar, and
-prices-compact pages fit one, failing the build if the 11px floor cannot
+print root font size steps down until the drinks, priced-menu, kitchen,
+pantry, and prices pages fit two A4 and Letter pages and the compact, bar,
+and prices-compact pages fit one, failing the build if the 11px floor cannot
 satisfy the budget. The same pass renders
 each menu to a print-ready PDF next to its HTML (menu.pdf, menu/compact.pdf,
-bar.pdf, kitchen.pdf, pantry.pdf, prices.pdf, prices/compact.pdf): the PDF
+prices/menu.pdf, bar.pdf, kitchen.pdf, pantry.pdf, prices.pdf,
+prices/compact.pdf): the PDF
 carries the brand line in an
 @page bottom margin box
 on every page, which browsers cannot do in their print preview, so the PDF
@@ -97,8 +99,9 @@ BAR_PAGE_BUDGET = 1
 # allowed to spill past one sheet, so it answers to the two-page budget.
 PANTRY_PAGE_BUDGET = 2
 # The priced pages answer to the same budgets as their unpriced twins:
-# the regular page like the drinks menu (two sheets), the priced compact
-# page like the compact menu (one sheet).
+# the cost-reference pages like the drinks menu (two sheets) and the
+# compact menu (one sheet), and the priced customer menu like the drinks
+# menu it mirrors (two sheets).
 PRICES_PAGE_BUDGET = 2
 PRICES_COMPACT_PAGE_BUDGET = 1
 # The print PDF of each page answers to the same page budget as the HTML
@@ -107,6 +110,7 @@ PRICES_COMPACT_PAGE_BUDGET = 1
 PDF_PAGE_BUDGETS = {
     "menu.pdf": PRINT_PAGE_BUDGET,
     "menu/compact.pdf": COMPACT_PAGE_BUDGET,
+    "prices/menu.pdf": PRINT_PAGE_BUDGET,
     "bar.pdf": BAR_PAGE_BUDGET,
     "kitchen.pdf": PRINT_PAGE_BUDGET,
     "pantry.pdf": PANTRY_PAGE_BUDGET,
@@ -143,6 +147,10 @@ PRINT_HEADROOM_STEPS = {
     # the drink count grew to 32) where the unpriced compact keeps two.
     "prices.html": 1,
     "prices/compact.html": 3,
+    # The priced customer menu mirrors its unpriced drinks-menu twin's
+    # one-step calibration; raise it only if the Chrome sensor measures
+    # more drift there.
+    "prices/menu.html": 1,
 }
 PAPER_SIZES = ("a4", "letter")
 PRINT_FIT_SEARCH_SIZE = "letter"
@@ -433,12 +441,20 @@ def shows_english_subtitle(item: Item) -> bool:
     )
 
 
-def render_item(item: Item, show_pills: bool, line_suffix: str = "") -> str:
+def render_item(item: Item, show_pills: bool, below_line: str = "") -> str:
+    """Render one item: the name/pills line, then the optional below-line
+    price element, then the optional subtitle and description.
+
+    The below-line markup is the price's whole slot: it renders as its
+    own element directly under the .item-line, never inside it.
+    """
+
     line = f'<span class="item-name">{html.escape(item_lead(item))}</span>'
     if show_pills:
         line += render_pills(item.temperatures)
-    line += line_suffix
     parts = [f'<div class="item">', f'  <div class="item-line">{line}</div>']
+    if below_line:
+        parts.append(f"  {below_line}")
     if shows_english_subtitle(item):
         parts.append(f'  <p class="item-vi">{html.escape(item.name_en)}</p>')
     if item.description:
@@ -548,48 +564,41 @@ MENU_PAGE_BREAK_SECTION_ID = "mat-cha"
 OWN_PAGE_CSS_CLASS = "own-page"
 
 
-def render_menu_page(
-    menu: Menu, costs: dict[str, pricing_source.DrinkCost] | None = None
-) -> str:
-    """Render the drinks menu: the parsed sections, with the joined
-    selling price on every non-Kem item line when the joined costs are
-    given (the workbook prices no foams, so Kem stays unpriced)."""
+def own_page_class(section: Section) -> str | None:
+    """Return the print page-break class for the Mát-cha section, else None."""
+
+    return (
+        OWN_PAGE_CSS_CLASS
+        if section.id == MENU_PAGE_BREAK_SECTION_ID
+        else None
+    )
+
+
+def render_menu_page(menu: Menu) -> str:
+    """Render the drinks menu: the parsed sections, unpriced.
+
+    The customer-facing menu carries no prices; the priced views live in
+    the Giá family (the priced customer menu, the cost-reference pair).
+    """
 
     template = read_template("menu.html")
     sections_html = "\n".join(
         render_section(
             section,
-            None
-            if costs is None
-            else selling_price_item_renderer(costs, section.show_pills),
-            css_class=(
-                OWN_PAGE_CSS_CLASS
-                if section.id == MENU_PAGE_BREAK_SECTION_ID
-                else None
-            ),
+            css_class=own_page_class(section),
         )
         for section in menu.sections
     )
     return template.replace("<!--SECTIONS-->", sections_html)
 
 
-def render_compact_page(
-    menu: Menu, costs: dict[str, pricing_source.DrinkCost] | None = None
-) -> str:
+def render_compact_page(menu: Menu) -> str:
     """Render the compact drinks menu: the parsed sections at three-column
-    density, with the joined selling price on every non-Kem item line when
-    the joined costs are given."""
+    density, unpriced like the full drinks menu."""
 
     template = read_template("compact.html")
     sections_html = "\n".join(
-        render_section(
-            section,
-            None
-            if costs is None
-            else selling_price_item_renderer(costs, section.show_pills),
-            columns=3,
-        )
-        for section in menu.sections
+        render_section(section, columns=3) for section in menu.sections
     )
     return template.replace("<!--SECTIONS-->", sections_html)
 
@@ -745,7 +754,11 @@ def format_price(value: float) -> str:
 
 
 def render_price_cluster(cost: pricing_source.DrinkCost) -> str:
-    """Render the item-line price cluster: cost, separator, suggested retail."""
+    """Render the below-line price cluster: cost, separator, suggested retail.
+
+    The cluster renders as its own element under the .item-line, above
+    the subtitle and description.
+    """
 
     return (
         '<span class="price">'
@@ -757,8 +770,12 @@ def render_price_cluster(cost: pricing_source.DrinkCost) -> str:
 
 
 def render_selling_price(cost: pricing_source.DrinkCost) -> str:
-    """Render the item-line single selling price: the workbook's Menu
-    Price, the SRP, formatted like the prices pair's suggested figure."""
+    """Render the below-line single selling price: the workbook's Menu
+    Price, the SRP, formatted like the prices pair's suggested figure.
+
+    The price renders as its own element under the .item-line, above the
+    subtitle and description.
+    """
 
     return (
         '<span class="price">'
@@ -770,11 +787,12 @@ def render_selling_price(cost: pricing_source.DrinkCost) -> str:
 def priced_item_renderer(
     costs: dict[str, pricing_source.DrinkCost], show_pills: bool
 ) -> Callable[[Item], str]:
-    """Build an item renderer that appends the price cluster after any pills."""
+    """Build an item renderer that places the price cluster on its own line
+    below the item line."""
 
     def render(item: Item) -> str:
         return render_item(
-            item, show_pills, line_suffix=render_price_cluster(costs[item.name_en])
+            item, show_pills, below_line=render_price_cluster(costs[item.name_en])
         )
 
     return render
@@ -783,18 +801,18 @@ def priced_item_renderer(
 def selling_price_item_renderer(
     costs: dict[str, pricing_source.DrinkCost], show_pills: bool
 ) -> Callable[[Item], str]:
-    """Build an item renderer that appends the single selling price after
-    any pills.
+    """Build an item renderer that places the single selling price on its
+    own line below the item line.
 
     Items with no joined row (the Kem cold-foam builds: the workbook
-    prices no foams) render with no price suffix; the loud join has
+    prices no foams) render with no price element; the loud join has
     already guaranteed every drink row exists.
     """
 
     def render(item: Item) -> str:
         cost = costs.get(item.name_en)
-        suffix = render_selling_price(cost) if cost is not None else ""
-        return render_item(item, show_pills, line_suffix=suffix)
+        below_line = render_selling_price(cost) if cost is not None else ""
+        return render_item(item, show_pills, below_line=below_line)
 
     return render
 
@@ -813,11 +831,7 @@ def render_prices_page(
         render_section(
             section,
             priced_item_renderer(costs, section.show_pills),
-            css_class=(
-                OWN_PAGE_CSS_CLASS
-                if section.id == MENU_PAGE_BREAK_SECTION_ID
-                else None
-            ),
+            css_class=own_page_class(section),
         )
         for section in sections
     )
@@ -835,6 +849,30 @@ def render_prices_compact_page(
             section, priced_item_renderer(costs, section.show_pills), columns=3
         )
         for section in sections
+    )
+    return template.replace("<!--SECTIONS-->", sections_html)
+
+
+def render_prices_menu_page(
+    menu: Menu, costs: dict[str, pricing_source.DrinkCost]
+) -> str:
+    """Render the priced customer menu: the full drinks-menu layout with
+    one selling price per drink on its own line below the item line.
+
+    The page mirrors the drinks menu's print shape, including the
+    Mát-cha print page break, through the priced-menu template. It takes
+    the whole parsed menu (the Kem cold-foam builds render unpriced) and
+    sells through the same loud join as the cost-reference pair.
+    """
+
+    template = read_template("prices-menu.html")
+    sections_html = "\n".join(
+        render_section(
+            section,
+            selling_price_item_renderer(costs, section.show_pills),
+            css_class=own_page_class(section),
+        )
+        for section in menu.sections
     )
     return template.replace("<!--SECTIONS-->", sections_html)
 
@@ -1196,7 +1234,7 @@ def build_site(
     )
     out_dir.mkdir(parents=True, exist_ok=True)
     fitted: list[tuple[str, float]] = []
-    menu_page = render_menu_page(menu, prices_by_name)
+    menu_page = render_menu_page(menu)
     if fit_pages:
         menu_page, menu_root = fit_print_root(
             menu_page,
@@ -1206,7 +1244,7 @@ def build_site(
         fitted.append(("index.html", menu_root))
     (out_dir / "index.html").write_text(menu_page)
     (out_dir / "menu.html").write_text(menu_page)
-    compact_page = render_compact_page(menu, prices_by_name)
+    compact_page = render_compact_page(menu)
     if fit_pages:
         compact_page, compact_root = fit_print_root(
             compact_page,
@@ -1242,6 +1280,15 @@ def build_site(
         fitted.append(("prices/compact.html", prices_compact_root))
     (out_dir / "prices").mkdir(exist_ok=True)
     (out_dir / "prices" / "compact.html").write_text(prices_compact_page)
+    prices_menu_page = render_prices_menu_page(menu, prices_by_name)
+    if fit_pages:
+        prices_menu_page, prices_menu_root = fit_print_root(
+            prices_menu_page,
+            label="prices/menu.html",
+            headroom_steps=PRINT_HEADROOM_STEPS["prices/menu.html"],
+        )
+        fitted.append(("prices/menu.html", prices_menu_root))
+    (out_dir / "prices" / "menu.html").write_text(prices_menu_page)
     bar_page = render_bar_page(bar_items)
     if fit_pages:
         bar_page, bar_root = fit_print_root(
@@ -1291,6 +1338,7 @@ def build_site(
         for pdf_name, page_html in (
             ("menu.pdf", menu_page),
             ("menu/compact.pdf", compact_page),
+            ("prices/menu.pdf", prices_menu_page),
             ("prices.pdf", prices_page),
             ("prices/compact.pdf", prices_compact_page),
             ("bar.pdf", bar_page),
