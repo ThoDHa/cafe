@@ -13,6 +13,7 @@ import json
 import re
 import shutil
 import textwrap
+from collections import Counter
 from pathlib import Path
 
 import pytest
@@ -390,10 +391,14 @@ def test_generation_is_byte_identical_across_runs(tmp_path) -> None:
     assert first.read_bytes() == second.read_bytes()
 
 
-def test_real_menu_yields_36_items_across_5_categories(tmp_path) -> None:
+def test_real_menu_generation_matches_the_committed_item_and_category_counts(tmp_path) -> None:
     document = generate(DEFAULT_RECIPES, DEFAULT_OVERRIDES, tmp_path / "menu.json")
-    assert len(document["items"]) == 36
-    assert len(document["categories"]) == 5
+    committed = json.loads(MENU_JSON.read_text(encoding="utf-8"))
+    assert len(document["items"]) == len(committed["items"])
+    assert len(document["categories"]) == len(committed["categories"])
+    assert Counter(item["categoryId"] for item in document["items"]) == Counter(
+        item["categoryId"] for item in committed["items"]
+    )
 
 
 def test_real_menu_tracks_the_recipes_drinks(tmp_path) -> None:
@@ -403,3 +408,25 @@ def test_real_menu_tracks_the_recipes_drinks(tmp_path) -> None:
     assert items["black-coffee"]["temperatures"] == ["hot", "iced"]
     assert items["black-coffee"]["modifierGroupIds"] == ["sweetness", "cold-foam"]
     assert "bac-xiu" not in items
+
+
+def test_real_egg_foams_take_their_names_and_copy_from_the_recipes(tmp_path) -> None:
+    document = generate(DEFAULT_RECIPES, DEFAULT_OVERRIDES, tmp_path / "menu.json")
+    items = items_by_id(document)
+    assert items["kem-trung"]["nameVi"] == "Kem Trứng"
+    assert items["kem-trung"]["description"] == (
+        "Northern Vietnam's hot foam: egg yolk and sweetened condensed milk "
+        "whisked into a dense, custardy cap."
+    )
+    assert items["kem-cacao-trung"]["nameVi"] == "Kem Trứng Cacao"
+    assert items["kem-cacao-trung"]["description"] == (
+        "Custardy egg foam with dark cocoa."
+    )
+    assert items["kem-matcha-trung"]["nameVi"] == "Kem Trứng Matcha"
+    assert items["kem-matcha-trung"]["description"] == (
+        "Custardy egg foam with matcha."
+    )
+    assert all(
+        items[item_id]["temperatures"] == ["iced"]
+        for item_id in ("kem-trung", "kem-cacao-trung", "kem-matcha-trung")
+    )

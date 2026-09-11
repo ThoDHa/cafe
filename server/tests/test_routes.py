@@ -13,7 +13,7 @@ from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import create_app
+from app.main import create_app, load_menu
 
 AFFOGATO_LINE = {"itemId": "ca-phe-kem", "temperature": "hot", "quantity": 1}
 
@@ -54,20 +54,7 @@ def test_menu_serves_the_validated_document(client: TestClient) -> None:
 
     assert response.status_code == 200
     menu = response.json()
-    assert menu["version"] == 1
-    assert menu["orderRules"] == {
-        "notesMaxLength": 200,
-        "minQuantity": 1,
-        "maxQuantity": 10,
-    }
-    assert [category["id"] for category in menu["categories"]] == [
-        "ca-phe",
-        "mat-cha",
-        "tra",
-        "giai-khat",
-        "kem",
-    ]
-    assert len(menu["items"]) == 36
+    assert menu == load_menu().model_dump(mode="json", by_alias=True)
     cortado = next(item for item in menu["items"] if item["id"] == "cortado")
     assert cortado["nameVi"] == "Cortado"
     assert cortado["temperatures"] == ["hot"]

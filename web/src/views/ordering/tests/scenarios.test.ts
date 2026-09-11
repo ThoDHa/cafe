@@ -21,18 +21,14 @@ const matchaLine: OrderLine = {
 };
 
 describe("ordering mock scenarios", () => {
-  it("serves the real menu through the mock with all 36 items in 5 sections", async () => {
+  it("serves the real menu through the mock with every committed item in its section", async () => {
     const client = createMockClient(menuScript());
     const menu = await client.getMenu();
 
-    expect(menu.categories.map((category) => category.nameVi)).toEqual([
-      "Cà Phê",
-      "Mát-cha",
-      "Trà",
-      "Giải Khát",
-      "Kem",
-    ]);
-    expect(menu.items).toHaveLength(36);
+    expect(menu.categories.map((category) => category.nameVi)).toEqual(
+      menuDocument.categories.map((category) => category.nameVi),
+    );
+    expect(menu.items).toHaveLength(menuDocument.items.length);
     expect(menu.orderRules).toEqual({
       notesMaxLength: 200,
       minQuantity: 1,

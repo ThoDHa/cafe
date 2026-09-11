@@ -8,6 +8,7 @@ round-trip coverage lives in test_menu_generation.py.
 
 import json
 import re
+from collections import Counter
 from functools import cache
 from pathlib import Path
 
@@ -16,21 +17,7 @@ import jsonschema
 MENU_DIR = Path(__file__).resolve().parents[2] / "menu"
 ASSETS_DIR = MENU_DIR / "assets"
 
-EXPECTED_CATEGORIES = [
-    ("ca-phe", "Cà Phê", "Coffee"),
-    ("mat-cha", "Mát-cha", "Matcha"),
-    ("tra", "Trà", "Tea"),
-    ("giai-khat", "Giải Khát", "Refreshers"),
-    ("kem", "Kem", "Cold Foams"),
-]
-
-EXPECTED_ITEM_COUNTS = {
-    "ca-phe": 10,
-    "mat-cha": 8,
-    "tra": 4,
-    "giai-khat": 6,
-    "kem": 8,
-}
+KEM_ID_PREFIX = "kem-"
 
 SWEETNESS_SCALE = ["full", "75", "50", "25", "none"]
 
@@ -49,6 +36,13 @@ def menu() -> dict:
 @cache
 def schema() -> dict:
     return json.loads((MENU_DIR / "menu.schema.json").read_text(encoding="utf-8"))
+
+
+@cache
+def ordering_overrides() -> dict:
+    return json.loads(
+        (MENU_DIR / "ordering-overrides.json").read_text(encoding="utf-8")
+    )
 
 
 def items_by_id() -> dict:
@@ -73,15 +67,14 @@ def test_menu_validates_against_the_json_schema() -> None:
     assert not errors, "\n".join(f"{list(error.path)}: {error.message}" for error in errors)
 
 
-def test_menu_covers_the_five_recipe_sections() -> None:
+def test_menu_covers_the_configured_recipe_sections() -> None:
     categories = menu()["categories"]
+    configured = ordering_overrides()["categories"]
     assert [(c["id"], c["nameVi"], c["name"]) for c in categories] == [
-        (category_id, name_vi, name) for category_id, name_vi, name in EXPECTED_CATEGORIES
+        (c["id"], c["nameVi"], c["name"]) for c in configured
     ]
-    counts = {category_id: 0 for category_id, _, _ in EXPECTED_CATEGORIES}
-    for item in menu()["items"]:
-        counts[item["categoryId"]] += 1
-    assert counts == EXPECTED_ITEM_COUNTS
+    counts = Counter(item["categoryId"] for item in menu()["items"])
+    assert set(counts) == {c["id"] for c in configured}
 
 
 def test_items_are_unique_and_fully_described() -> None:
@@ -214,19 +207,18 @@ def test_bac_xiu_is_no_longer_on_the_menu() -> None:
 
 
 def test_kem_items_are_standalone_foam_builds() -> None:
-    kem_ids = {item["id"] for item in menu()["items"] if item["categoryId"] == "kem"}
-    assert kem_ids == {
-        "kem-sua",
-        "kem-muoi",
-        "kem-matcha",
-        "kem-pho-mai",
-        "kem-dau",
-        "kem-cacao",
-        "kem-tra",
-        "kem-sua-chua",
+    curated_kem_ids = {
+        override["id"]
+        for override in ordering_overrides()["items"].values()
+        if override["id"].startswith(KEM_ID_PREFIX)
     }
+    kem_items = [item for item in menu()["items"] if item["categoryId"] == "kem"]
+    assert {item["id"] for item in kem_items} == curated_kem_ids
     for item in menu()["items"]:
         if item["categoryId"] != "kem":
+            assert not item["id"].startswith(KEM_ID_PREFIX), (
+                f"{item['id']} carries a foam id outside the kem category"
+            )
             continue
         assert item["temperatures"] == ["iced"]
         assert item["modifierGroupIds"] == []

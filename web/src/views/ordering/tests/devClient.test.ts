@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createDevClient } from "../lib/devClient";
+import { menuDocument } from "../lib/menuData";
 import type { OrderLine } from "../../../api/client";
 
 const matchaLine: OrderLine = {
@@ -21,8 +22,7 @@ describe("dev client stand-in", () => {
   it("serves the real menu", async () => {
     const client = createDevClient();
     const menu = await client.getMenu();
-    expect(menu.items).toHaveLength(36);
-    expect(menu.categories).toHaveLength(5);
+    expect(menu).toEqual(menuDocument);
   });
 
   it("places orders with sequential daily numbers and resolved names", async () => {

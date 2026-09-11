@@ -4,6 +4,7 @@ Run: uv run --with pytest pytest site/ -q
 """
 
 import ast
+import html
 import os
 import re
 import sys
@@ -140,6 +141,201 @@ FIXTURE = textwrap.dedent(
     - 5g saline solution
     """
 )
+
+# The egg builds mirror the shape recipes gives them: the matrix rows link
+# each build's own section heading by anchor, the Vietnamese name rides a
+# heading one level deeper than the build's heading, and the description is
+# the paragraph under that name.
+EGG_FOAM_FIXTURE = textwrap.dedent(
+    """
+    # Cafe Fixture
+
+    ## Cold Foams
+
+    Creamy foam caps for any drink: the cold foams top iced drinks, and the hot egg foam tops hot ones.
+
+    ### Foam Matrix
+
+    | Build | Components | Prep |
+    |---|---|---|
+    | [Base](#base-foam) | None | Combine and froth |
+    | [Salted](#salted-cold-foam) | 5g saline | Combine and froth |
+    | [Egg](#base-egg-foam) | 18g egg yolk + 15g condensed milk | Whisk to ribbon stage; served hot |
+    | [Cocoa Egg](#cocoa-egg-foam) | + 4g cocoa powder | Whisk the cocoa in from the start |
+    | [Matcha Egg](#matcha-egg-foam) | + 3g matcha powder | Sift in before whisking |
+
+    ### Base Foam
+
+    Sweet cream cold foam.
+
+    - 30g heavy whipping cream
+    - 15g milk
+
+    #### Instructions
+
+    1. Froth.
+
+    ### Foam Builds
+
+    Every build is the Base Foam with the components listed below.
+
+    #### Salted Cold Foam
+
+    The base foam sharpened with a dash of salt.
+
+    - 5g saline solution
+
+    The salt rides inside the foam, so no extra salinity is added at serve.
+
+    ### Base Egg Foam
+
+    #### Kem Trứng
+
+    Northern Vietnam's hot foam: egg yolk and sweetened condensed milk whisked into a dense, custardy cap.
+
+    - 1 egg yolk
+    - 15g condensed milk
+
+    #### Instructions
+
+    1. Whisk.
+
+    ### Egg Foam Builds
+
+    Every build is the [Base Egg Foam](#base-egg-foam) with the components listed below.
+
+    #### Cocoa Egg Foam
+
+    ##### Kem Trứng Cacao
+
+    Custardy [egg foam](#base-egg-foam) with dark cocoa.
+
+    - 1 dose Base Egg Foam
+    - 4g cocoa powder
+
+    #### Matcha Egg Foam
+
+    ##### Kem Trứng Matcha
+
+    Custardy [egg foam](#base-egg-foam) with [matcha](#koicha-matcha).
+
+    - 1 dose Base Egg Foam
+    - 3g matcha powder
+    """
+)
+
+# The matrix anchor resolves to no heading in the section, so the legacy
+# "…Cold Foam" heading pattern must carry the description instead.
+UNRESOLVED_ANCHOR_FOAM_FIXTURE = textwrap.dedent(
+    """
+    # Cafe Fixture
+
+    ## Cold Foams
+
+    ### Foam Matrix
+
+    | Build | Components | Prep |
+    |---|---|---|
+    | [Honey](#wild-honey) | 15g honey | Combine and froth |
+
+    ### Honey Cold Foam
+
+    Honey whisked into sweetened cream.
+
+    - 30g heavy whipping cream
+    - 15g honey
+    """
+)
+
+# The build's description wraps across two source lines: the scan must
+# join the paragraph block the way the drinks path reads a blocks()
+# paragraph, not stop at the first physical line.
+WRAPPED_DESCRIPTION_FOAM_FIXTURE = textwrap.dedent(
+    """
+    # Cafe Fixture
+
+    ## Cold Foams
+
+    ### Foam Matrix
+
+    | Build | Components | Prep |
+    |---|---|---|
+    | [Maca](#maca-cold-foam) | 5g maca powder | Combine and froth |
+
+    ### Maca Cold Foam
+
+    #### Kem Maca
+
+    Maca whisked into the base foam for a
+    malty lift with a sandy finish.
+
+    - 5g maca powder
+    """
+)
+
+# GitHub suffixes a repeated heading's anchor (-1, -2, ...): the second
+# "Salted Cold Foam" lives at #salted-cold-foam-1, and a matrix row
+# pointing there must resolve to that heading instead of falling back to
+# the legacy pattern.
+DUPLICATE_HEADING_FOAM_FIXTURE = textwrap.dedent(
+    """
+    # Cafe Fixture
+
+    ## Cold Foams
+
+    ### Foam Matrix
+
+    | Build | Components | Prep |
+    |---|---|---|
+    | [Salted](#salted-cold-foam) | 5g saline | Combine and froth |
+    | [Double Salted](#salted-cold-foam-1) | 10g saline | Combine and froth |
+
+    ### Salted Cold Foam
+
+    Sharpened once.
+
+    - 5g saline solution
+
+    ### Salted Cold Foam
+
+    Sharpened twice.
+
+    - 10g saline solution
+    """
+)
+
+# A nameless build wedged between the two curated egg builds: the sibling
+# variant proves the scan neither inherits a neighbor's deeper name nor
+# its description, and leaves both neighbors untouched.
+SIBLING_EGG_FOAM_FIXTURE = EGG_FOAM_FIXTURE.replace(
+    "| [Matcha Egg](#matcha-egg-foam) | + 3g matcha powder | Sift in before whisking |",
+    "| [Matcha Egg](#matcha-egg-foam) | + 3g matcha powder | Sift in before whisking |\n"
+    "| [Plain Egg](#plain-egg-foam) | None | Combine and froth |",
+).replace(
+    "#### Matcha Egg Foam",
+    "#### Plain Egg Foam\n\n"
+    "Custard cap with nothing extra.\n\n"
+    "- 1 dose Base Egg Foam\n\n"
+    "#### Matcha Egg Foam",
+)
+
+# The three egg foams are curated in the recipes: Vietnamese lead, English
+# subtitle, and the recipes' own description paragraph.
+EGG_FOAM_NEEDLES = {
+    "Egg Cold Foam": (
+        "Kem Trứng",
+        "Northern Vietnam's hot foam: egg yolk and sweetened condensed "
+        "milk whisked into a dense, custardy cap.",
+    ),
+    "Cocoa Egg Cold Foam": (
+        "Kem Trứng Cacao",
+        "Custardy egg foam with dark cocoa.",
+    ),
+    "Matcha Egg Cold Foam": (
+        "Kem Trứng Matcha",
+        "Custardy egg foam with matcha.",
+    ),
+}
 
 
 def parsed_fixture():
@@ -305,6 +501,90 @@ class TestFoams:
         menu = parsed_fixture()
         base = menu.by_id("kem").items[0]
         assert base.description is not None
+
+    def test_egg_foam_reads_the_deeper_vietnamese_heading(self):
+        kem = generate.parse_menu(EGG_FOAM_FIXTURE).by_id("kem")
+        names = {i.name_en: i.name_vi for i in kem.items}
+        assert names["Egg Cold Foam"] == "Kem Trứng"
+        assert names["Cocoa Egg Cold Foam"] == "Kem Trứng Cacao"
+        assert names["Matcha Egg Cold Foam"] == "Kem Trứng Matcha"
+
+    def test_egg_foam_reads_the_description_under_its_own_heading(self):
+        kem = generate.parse_menu(EGG_FOAM_FIXTURE).by_id("kem")
+        descriptions = {i.name_en: i.description for i in kem.items}
+        assert descriptions["Egg Cold Foam"] == (
+            "Northern Vietnam's hot foam: egg yolk and sweetened condensed "
+            "milk whisked into a dense, custardy cap."
+        )
+        assert descriptions["Cocoa Egg Cold Foam"] == (
+            "Custardy egg foam with dark cocoa."
+        )
+        assert descriptions["Matcha Egg Cold Foam"] == (
+            "Custardy egg foam with matcha."
+        )
+
+    def test_egg_foam_ids_and_temperatures_are_untouched(self):
+        kem = generate.parse_menu(EGG_FOAM_FIXTURE).by_id("kem")
+        assert [i.name_en for i in kem.items] == [
+            "Base Foam",
+            "Salted Cold Foam",
+            "Egg Cold Foam",
+            "Cocoa Egg Cold Foam",
+            "Matcha Egg Cold Foam",
+        ]
+        assert all(i.temperatures == ["iced"] for i in kem.items)
+
+    def test_cream_builds_keep_their_configured_names_beside_the_egg_builds(self):
+        kem = generate.parse_menu(EGG_FOAM_FIXTURE).by_id("kem")
+        names = {i.name_en: i.name_vi for i in kem.items}
+        assert names["Base Foam"] == "Kem Sữa"
+        assert names["Salted Cold Foam"] == "Kem Muối"
+
+    def test_build_description_is_the_first_paragraph_not_the_last(self):
+        kem = generate.parse_menu(EGG_FOAM_FIXTURE).by_id("kem")
+        salted = next(i for i in kem.items if i.name_en == "Salted Cold Foam")
+        assert salted.description == "The base foam sharpened with a dash of salt."
+
+    def test_wrapped_description_joins_into_one_paragraph(self):
+        kem = generate.parse_menu(WRAPPED_DESCRIPTION_FOAM_FIXTURE).by_id("kem")
+        maca = kem.items[0]
+        assert maca.name_vi == "Kem Maca"
+        assert maca.description == (
+            "Maca whisked into the base foam for a malty lift with a sandy finish."
+        )
+
+    def test_build_without_a_deeper_name_does_not_inherit_its_siblings(self):
+        kem = generate.parse_menu(SIBLING_EGG_FOAM_FIXTURE).by_id("kem")
+        by_name = {i.name_en: i for i in kem.items}
+        plain = by_name["Plain Egg Cold Foam"]
+        assert plain.name_vi is None
+        assert plain.description == "Custard cap with nothing extra."
+        assert by_name["Cocoa Egg Cold Foam"].name_vi == "Kem Trứng Cacao"
+        assert by_name["Matcha Egg Cold Foam"].name_vi == "Kem Trứng Matcha"
+
+    def test_unresolvable_anchor_falls_back_to_the_legacy_heading(self):
+        kem = generate.parse_menu(UNRESOLVED_ANCHOR_FOAM_FIXTURE).by_id("kem")
+        honey = kem.items[0]
+        assert honey.name_en == "Honey Cold Foam"
+        assert honey.name_vi is None
+        assert honey.description == "Honey whisked into sweetened cream."
+
+    def test_duplicate_heading_anchor_resolves_to_the_suffixed_heading(self):
+        kem = generate.parse_menu(DUPLICATE_HEADING_FOAM_FIXTURE).by_id("kem")
+        by_name = {i.name_en: i for i in kem.items}
+        assert by_name["Salted Cold Foam"].description == "Sharpened once."
+        assert by_name["Double Salted Cold Foam"].name_vi is None
+        assert by_name["Double Salted Cold Foam"].description == "Sharpened twice."
+
+    def test_foam_with_no_matching_heading_yields_none_everywhere(self):
+        fixture = UNRESOLVED_ANCHOR_FOAM_FIXTURE.replace(
+            "### Honey Cold Foam\n\nHoney whisked into sweetened cream.\n",
+            "",
+        )
+        kem = generate.parse_menu(fixture).by_id("kem")
+        honey = kem.items[0]
+        assert honey.name_vi is None
+        assert honey.description is None
 
 
 class TestOverrides:
@@ -2101,6 +2381,21 @@ class TestPricesMenuPage:
         assert price in block
         assert block.count('<span class="price">') == 1
 
+    def test_egg_foams_render_unpriced_with_names_and_description(
+        self, no_fit_build
+    ):
+        page = (no_fit_build / "prices/menu.html").read_text()
+        for english, (vietnamese, description) in EGG_FOAM_NEEDLES.items():
+            block = item_block_for_name(page, english)
+            assert f'<span class="item-name">{vietnamese}</span>' in block, english
+            assert f'<p class="item-vi">{english}</p>' in block, english
+            assert (
+                f'<p class="item-desc">{html.escape(description)}</p>' in block
+            ), english
+            assert '<span class="price">' not in block, (
+                f"{english}: the Kem section carries no price display"
+            )
+
     def test_priced_menu_carries_no_cost_figures_separators_or_legend(self):
         menu = generate.parse_menu(RECIPES_CAFE.read_text())
         _, costs = joined_prices()
@@ -2250,6 +2545,18 @@ class TestCustomerPairUnpriced:
             assert ">KEM<" in page, name
             for lead in leads:
                 assert lead in page, (name, lead)
+
+    def test_egg_foams_lead_vietnamese_with_english_subtitle_and_description(
+        self, no_fit_build
+    ):
+        page = (no_fit_build / "menu.html").read_text()
+        for english, (vietnamese, description) in EGG_FOAM_NEEDLES.items():
+            block = item_block_for_name(page, english)
+            assert f'<span class="item-name">{vietnamese}</span>' in block, english
+            assert f'<p class="item-vi">{english}</p>' in block, english
+            assert (
+                f'<p class="item-desc">{html.escape(description)}</p>' in block
+            ), english
 
     def test_index_stays_byte_identical_to_menu_html(self, no_fit_build):
         assert (no_fit_build / "index.html").read_bytes() == (
