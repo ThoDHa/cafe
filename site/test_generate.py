@@ -304,6 +304,36 @@ DUPLICATE_HEADING_FOAM_FIXTURE = textwrap.dedent(
     """
 )
 
+# Distinct heading texts can share a GitHub slug when only punctuation
+# differs: "Maca Cold Foam!" slugs to the same anchor as "Maca Cold
+# Foam", so the second heading's anchor carries the -1 suffix.
+SLUG_COLLISION_FOAM_FIXTURE = textwrap.dedent(
+    """
+    # Cafe Fixture
+
+    ## Cold Foams
+
+    ### Foam Matrix
+
+    | Build | Components | Prep |
+    |---|---|---|
+    | [Maca](#maca-cold-foam) | 5g maca powder | Combine and froth |
+    | [Double Maca](#maca-cold-foam-1) | 10g maca powder | Combine and froth |
+
+    ### Maca Cold Foam
+
+    Whisked once.
+
+    - 5g maca powder
+
+    ### Maca Cold Foam!
+
+    Whisked twice.
+
+    - 10g maca powder
+    """
+)
+
 # A nameless build wedged between the two curated egg builds: the sibling
 # variant proves the scan neither inherits a neighbor's deeper name nor
 # its description, and leaves both neighbors untouched.
@@ -575,6 +605,13 @@ class TestFoams:
         assert by_name["Salted Cold Foam"].description == "Sharpened once."
         assert by_name["Double Salted Cold Foam"].name_vi is None
         assert by_name["Double Salted Cold Foam"].description == "Sharpened twice."
+
+    def test_shared_slug_with_different_text_resolves_to_its_own_heading(self):
+        kem = generate.parse_menu(SLUG_COLLISION_FOAM_FIXTURE).by_id("kem")
+        by_name = {i.name_en: i for i in kem.items}
+        assert by_name["Maca Cold Foam"].description == "Whisked once."
+        assert by_name["Double Maca Cold Foam"].name_vi is None
+        assert by_name["Double Maca Cold Foam"].description == "Whisked twice."
 
     def test_foam_with_no_matching_heading_yields_none_everywhere(self):
         fixture = UNRESOLVED_ANCHOR_FOAM_FIXTURE.replace(

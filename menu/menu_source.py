@@ -408,22 +408,35 @@ def parse_foam_matrix(lines: list[str]) -> list[tuple[str, str]]:
 
 def foam_anchor_map(section_lines: list[str]) -> dict[str, tuple[str, int]]:
     """Map each heading's GitHub anchor to its (text, occurrence): the
-    first occurrence of a slug keeps the bare anchor and later duplicates
-    get -1, -2, ... suffixes, walked in document order, so a matrix row
-    pointing at a suffixed anchor resolves its own heading instead of
-    falling back to the legacy pattern."""
-    counts: dict[str, int] = {}
+    anchor follows GitHub's document-order slug deduplication, the first
+    occurrence of a slug keeping the bare anchor and later duplicates
+    getting -1, -2, ... suffixes, while the occurrence counts prior
+    headings of the same exact text, matching how foam_build_prose
+    locates a heading, so a matrix row pointing at a suffixed anchor
+    resolves its own heading instead of falling back to the legacy
+    pattern."""
+    slug_counts: dict[str, int] = {}
+    text_counts: dict[str, int] = {}
     anchors: dict[str, tuple[str, int]] = {}
     for line in section_lines:
         match = HEADING_RE.match(line)
         if not match:
             continue
-        slug = heading_anchor(match.group(2))
-        seen = counts.get(slug, 0)
-        counts[slug] = seen + 1
-        anchors[slug if seen == 0 else f"{slug}-{seen}"] = (
-            match.group(2).strip(),
-            seen,
+        text = match.group(2).strip()
+        slug = heading_anchor(text)
+        # A literal "Foo 1" heading beside a duplicated "Foo" slugs to
+        # GitHub's suffixed "foo-1" and overwrites the duplicate's entry
+        # in this map; GitHub's own anchor algorithm is ambiguous the
+        # same way, so the collision is accepted as parity. Revisit if
+        # GitHub's algorithm ever changes or the recipes file carries
+        # such a heading pair.
+        slug_prior = slug_counts.get(slug, 0)
+        slug_counts[slug] = slug_prior + 1
+        text_prior = text_counts.get(text, 0)
+        text_counts[text] = text_prior + 1
+        anchors[slug if slug_prior == 0 else f"{slug}-{slug_prior}"] = (
+            text,
+            text_prior,
         )
     return anchors
 
