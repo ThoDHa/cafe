@@ -316,7 +316,8 @@ SHARED_SCREEN_RULES = {
     ),
     "item-text": (
         "  .item-vi { font-weight: 500; }\n"
-        "  .item-desc, .section-note { color: var(--ink); }"
+        "  .item-desc, .section-note { color: var(--ink); }\n"
+        "  .item-desc { padding-left: 2ch; }"
     ),
 }
 

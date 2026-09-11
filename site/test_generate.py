@@ -3087,6 +3087,85 @@ class TestSharedScreenCss:
                 f"{name}: the description ink color treatment must stay"
             )
 
+    def test_item_text_screen_rule_indents_descriptions_as_a_whole_block(
+        self, shared_print_pages
+    ):
+        for name, page in shared_print_pages.items():
+            assert ".item-desc { padding-left: 2ch; }" in page, (
+                f"{name}: descriptions must carry the shared whole-block 2ch "
+                "indent (the CSS reading of the owner's two-space indent)"
+            )
+
+
+class TestDrinksPrintItemGap:
+    """Needles pinning SITE-42's widened print gutter on the drinks family.
+
+    The five drinks-menu templates (six built pages, counting the index
+    copy) widen their print-block `.items` column-gap one visible step
+    (1.4 to 1.8rem on the two-column pages, 1.1 to 1.5rem on the compact
+    twins) for legible printed columns. Bar, kitchen, and pantry sit
+    outside the owner's request and keep their gaps, and every screen gap
+    stays put: the widening is a print-path change only.
+    """
+
+    WIDENED_PRINT_GAPS = {
+        "index.html": "1.8rem",
+        "menu.html": "1.8rem",
+        "menu/compact.html": "1.5rem",
+        "prices.html": "1.8rem",
+        "prices/compact.html": "1.5rem",
+        "prices/menu.html": "1.8rem",
+    }
+
+    UNTOUCHED_PRINT_GAPS = {
+        "bar.html": "1.6rem",
+        "kitchen.html": "1.2rem",
+        "pantry.html": "1.2rem",
+    }
+
+    SCREEN_GAPS = {
+        "index.html": "2.5rem",
+        "menu.html": "2.5rem",
+        "menu/compact.html": "2rem",
+        "prices.html": "2.5rem",
+        "prices/compact.html": "2rem",
+        "prices/menu.html": "2.5rem",
+    }
+
+    def _print_item_gap_of(self, page_html: str, name: str) -> str:
+        match = re.search(
+            r"\.items \{ column-gap: ([0-9.]+)rem", print_css_of(page_html, name)
+        )
+        assert match, f"{name}: the print block declares no .items column-gap"
+        return f"{match.group(1)}rem"
+
+    def test_drinks_pages_carry_the_widened_print_item_gap(self, shared_print_pages):
+        for name, expected in self.WIDENED_PRINT_GAPS.items():
+            gap = self._print_item_gap_of(shared_print_pages[name], name)
+            assert gap == expected, (
+                f"{name}: print .items column-gap is {gap}, expected the "
+                f"widened {expected}"
+            )
+
+    def test_pages_outside_the_drinks_family_keep_their_print_item_gap(
+        self, shared_print_pages
+    ):
+        for name, expected in self.UNTOUCHED_PRINT_GAPS.items():
+            gap = self._print_item_gap_of(shared_print_pages[name], name)
+            assert gap == expected, (
+                f"{name}: print .items column-gap is {gap}; the widening "
+                f"covers the drinks family only, expected {expected}"
+            )
+
+    def test_drinks_pages_keep_their_screen_item_gap(self, shared_print_pages):
+        for name, expected in self.SCREEN_GAPS.items():
+            screen_css = shared_print_pages[name].split("@media print {", 1)[0]
+            pattern = rf"\.items \{{[^}}]*column-gap: {re.escape(expected)}"
+            assert re.search(pattern, screen_css), (
+                f"{name}: the screen .items column-gap {expected} must stay; "
+                "the SITE-42 widening is print-only"
+            )
+
 
 class TestPlaqueDoubleRule:
     """Needles pinning the plaque-echo double rule on footers and section heads.
