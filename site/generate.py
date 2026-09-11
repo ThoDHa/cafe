@@ -19,7 +19,7 @@ drink (Bạc Xỉu included, inserted after its anchor when cafe.md defines
 it only as a variation) renders with its cost and its suggested retail
 price exactly as the workbook evaluates them on the cost-reference pages,
 the priced customer menu carries the same join's suggested retail alone
-on its own line under each drink, and the main drinks menu, its compact
+in each drink's name row, and the main drinks menu, its compact
 twin, and the Kem cold-foam builds stay unpriced; a row
 or drink the join cannot match fails the build loudly. This module keeps
 only the site's own concerns: section blurbs, templates, rendering, and
@@ -442,22 +442,28 @@ def shows_english_subtitle(item: Item) -> bool:
     )
 
 
-def render_item(item: Item, show_pills: bool, below_line: str = "") -> str:
-    """Render one item: the name/pills line, then the optional below-line
-    price element, then the optional subtitle and description.
+def render_item(item: Item, show_pills: bool, price: str = "") -> str:
+    """Render one item: the name row with its right price slot, then the
+    subtitle row with its right pills slot, then the optional description.
 
-    The below-line markup is the price's whole slot: it renders as its
-    own element directly under the .item-line, never inside it.
+    The price markup renders inside the .item-line, after the item name;
+    the template CSS right-justifies it there. The pills render in the
+    .item-subline row, which exists whenever the item has an English
+    subtitle or pills. An empty price leaves row 1's right slot empty
+    with no price element.
     """
 
     line = f'<span class="item-name">{html.escape(item_lead(item))}</span>'
-    if show_pills:
-        line += render_pills(item.temperatures)
+    if price:
+        line += price
     parts = [f'<div class="item">', f'  <div class="item-line">{line}</div>']
-    if below_line:
-        parts.append(f"  {below_line}")
+    subline = ""
     if shows_english_subtitle(item):
-        parts.append(f'  <p class="item-vi">{html.escape(item.name_en)}</p>')
+        subline += f'<p class="item-vi">{html.escape(item.name_en)}</p>'
+    if show_pills:
+        subline += render_pills(item.temperatures)
+    if subline:
+        parts.append(f'  <div class="item-subline">{subline}</div>')
     if item.description:
         parts.append(f'  <p class="item-desc">{html.escape(item.description)}</p>')
     parts.append("</div>")
@@ -755,10 +761,10 @@ def format_price(value: float) -> str:
 
 
 def render_price_cluster(cost: pricing_source.DrinkCost) -> str:
-    """Render the below-line price cluster: cost, separator, suggested retail.
+    """Render the name-row price cluster: cost, separator, suggested retail.
 
-    The cluster renders as its own element under the .item-line, above
-    the subtitle and description.
+    The cluster renders inside the .item-line as its right slot, after
+    the item name; the template CSS right-justifies it there.
     """
 
     return (
@@ -771,11 +777,11 @@ def render_price_cluster(cost: pricing_source.DrinkCost) -> str:
 
 
 def render_selling_price(cost: pricing_source.DrinkCost) -> str:
-    """Render the below-line single selling price: the workbook's Menu
+    """Render the single selling price: the workbook's Menu
     Price, the SRP, formatted like the prices pair's suggested figure.
 
-    The price renders as its own element under the .item-line, above the
-    subtitle and description.
+    The price renders inside the .item-line as its right slot, after the
+    item name.
     """
 
     return (
@@ -788,12 +794,12 @@ def render_selling_price(cost: pricing_source.DrinkCost) -> str:
 def priced_item_renderer(
     costs: dict[str, pricing_source.DrinkCost], show_pills: bool
 ) -> Callable[[Item], str]:
-    """Build an item renderer that places the price cluster on its own line
-    below the item line."""
+    """Build an item renderer that places the price cluster in the item
+    line's right slot, after the item name."""
 
     def render(item: Item) -> str:
         return render_item(
-            item, show_pills, below_line=render_price_cluster(costs[item.name_en])
+            item, show_pills, price=render_price_cluster(costs[item.name_en])
         )
 
     return render
@@ -802,18 +808,18 @@ def priced_item_renderer(
 def selling_price_item_renderer(
     costs: dict[str, pricing_source.DrinkCost], show_pills: bool
 ) -> Callable[[Item], str]:
-    """Build an item renderer that places the single selling price on its
-    own line below the item line.
+    """Build an item renderer that places the single selling price in the
+    item line's right slot, after the item name.
 
     Items with no joined row (the Kem cold-foam builds: the workbook
-    prices no foams) render with no price element; the loud join has
-    already guaranteed every drink row exists.
+    prices no foams) render with an empty right slot and no price
+    element; the loud join has already guaranteed every drink row exists.
     """
 
     def render(item: Item) -> str:
         cost = costs.get(item.name_en)
-        below_line = render_selling_price(cost) if cost is not None else ""
-        return render_item(item, show_pills, below_line=below_line)
+        price = render_selling_price(cost) if cost is not None else ""
+        return render_item(item, show_pills, price=price)
 
     return render
 
@@ -858,7 +864,7 @@ def render_prices_menu_page(
     menu: Menu, costs: dict[str, pricing_source.DrinkCost]
 ) -> str:
     """Render the priced customer menu: the full drinks-menu layout with
-    one selling price per drink on its own line below the item line.
+    one selling price per drink right-justified on the drink's name row.
 
     The page mirrors the drinks menu's print shape, including the
     Mát-cha print page break, through the priced-menu template. It takes

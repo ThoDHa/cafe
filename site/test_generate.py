@@ -1485,6 +1485,98 @@ class TestRender:
             "reserved slots must paint nothing"
         )
 
+    def test_price_renders_in_the_item_line_after_the_item_name(self):
+        menu = generate.parse_menu(RECIPES_CAFE.read_text())
+        item = menu.by_id("ca-phe").items[0]
+        rendered = generate.render_item(
+            item,
+            show_pills=True,
+            price='<span class="price">'
+            '<span class="price-menu">$2.00</span></span>',
+        )
+        line = re.search(
+            r'<div class="item-line">(.*?)</div>', rendered, re.S
+        ).group(1)
+        assert line.index('class="item-name"') < line.index('class="price"'), (
+            "the price must be the name row's right slot, after the item name"
+        )
+        assert 'class="tags"' not in line, (
+            "the pills must never share the name row with the price"
+        )
+
+    def test_pills_render_in_the_subtitle_row_after_the_english_name(self):
+        menu = generate.parse_menu(RECIPES_CAFE.read_text())
+        item = next(
+            i
+            for s in menu.sections
+            if s.show_pills
+            for i in s.items
+            if generate.shows_english_subtitle(i)
+        )
+        rendered = generate.render_item(item, show_pills=True)
+        line = re.search(
+            r'<div class="item-line">(.*?)</div>', rendered, re.S
+        ).group(1)
+        assert 'class="tags"' not in line, "the pills must leave the name row"
+        subline = re.search(
+            r'<div class="item-subline">(.*?)</div>', rendered, re.S
+        ).group(1)
+        assert subline.index('class="item-vi"') < subline.index('class="tags"'), (
+            "the subtitle row must lead with the English name and right-slot "
+            "the pills"
+        )
+
+    def test_item_without_subtitle_right_justifies_pills_on_their_own_row(self):
+        menu = generate.parse_menu(RECIPES_CAFE.read_text())
+        item = menu.by_id("ca-phe").items[0]
+        item.name_vi = item.name_en
+        rendered = generate.render_item(item, show_pills=True)
+        assert 'class="item-vi"' not in rendered
+        subline = re.search(
+            r'<div class="item-subline">(.*?)</div>', rendered, re.S
+        )
+        assert subline, (
+            "an item with pills but no English subtitle must still render "
+            "the pill row"
+        )
+        assert subline.group(1).startswith('<span class="tags">'), (
+            "a subtitle-less item's pill row must carry only the pills"
+        )
+
+    def test_subtitle_row_exists_when_only_the_subtitle_exists(self):
+        menu = generate.parse_menu(RECIPES_CAFE.read_text())
+        item = next(
+            i
+            for s in menu.sections
+            for i in s.items
+            if generate.shows_english_subtitle(i)
+        )
+        rendered = generate.render_item(item, show_pills=False)
+        subline = re.search(
+            r'<div class="item-subline">(.*?)</div>', rendered, re.S
+        )
+        assert subline, "a subtitle with no pills still rides row 2"
+        assert 'class="tags"' not in subline.group(1)
+
+    def test_item_with_neither_subtitle_nor_pills_skips_the_subtitle_row(self):
+        menu = generate.parse_menu(RECIPES_CAFE.read_text())
+        item = menu.by_id("ca-phe").items[0]
+        item.name_vi = item.name_en
+        rendered = generate.render_item(item, show_pills=False)
+        assert 'class="item-subline"' not in rendered, (
+            "row 2 must not exist when the item has no English subtitle "
+            "and no pills"
+        )
+
+    def test_empty_price_leaves_the_name_row_right_slot_empty(self):
+        menu = generate.parse_menu(RECIPES_CAFE.read_text())
+        item = menu.by_id("ca-phe").items[0]
+        rendered = generate.render_item(item, show_pills=True, price="")
+        assert 'class="price"' not in rendered, (
+            "an empty price must render no price element: the customer "
+            "pair's row 1 right slot stays empty"
+        )
+
     def test_print_page_break_is_tagged_on_mat_cha_in_menu_render_only(self):
         menu = generate.parse_menu(RECIPES_CAFE.read_text())
         menu_page = generate.render_menu_page(menu)
@@ -1899,8 +1991,9 @@ class TestPricesRender:
         name_at = page.index(">Cà Phê Bạc Xỉu<")
         block = item_block_for_name(page, "Cà Phê Bạc Xỉu")
         assert cluster in block
-        assert block.index('<span class="price">') > block.index("</div>"), (
-            "the price cluster must sit below the item line, not inside it"
+        assert block.index('<span class="price">') < block.index("</div>"), (
+            "the price cluster must sit inside the item line, after the "
+            "item name"
         )
         ca_phe_at = page.index(">CÀ PHÊ<")
         tra_at = page.index(">TRÀ<")
@@ -1939,19 +2032,26 @@ class TestPricesRender:
         assert "<title>Cafe Ông Thọ · Bảng Giá</title>" in priced_menu
         assert 'href="menu.pdf">PDF View</a>' in priced_menu
 
-    def test_price_sits_below_the_item_line_above_subtitle_and_description(
-        self, no_fit_build
-    ):
+    def test_price_sits_in_the_item_line_after_the_item_name(self, no_fit_build):
         for name in ("prices/menu.html", "prices.html", "prices/compact.html"):
             page = (no_fit_build / name).read_text()
             block = item_block_for_name(page, "Black Coffee")
-            line_close = block.index("</div>")
-            price_at = block.index('<span class="price">')
-            vi_at = block.index('class="item-vi"')
+            line = re.search(
+                r'<div class="item-line">(.*?)</div>', block, re.S
+            ).group(1)
+            assert line.index('class="item-name"') < line.index('class="price"'), (
+                f"{name}: the price must render inside the name row, after "
+                "the item name"
+            )
+            assert 'class="tags"' not in line, (
+                f"{name}: the pills must never share the name row with the "
+                "price"
+            )
+            subline_at = block.index('class="item-subline"')
             desc_at = block.index('class="item-desc"')
-            assert line_close < price_at < vi_at < desc_at, (
-                f"{name}: the price must render as its own element between "
-                "the item line and the subtitle/description"
+            assert block.index("</div>") < subline_at < desc_at, (
+                f"{name}: the subtitle row and description must follow the "
+                "name row"
             )
 
 
@@ -1959,9 +2059,9 @@ class TestPricesMenuPage:
     """The priced customer menu: the drinks-menu layout, selling price only.
 
     Owner direction 2026-09-10: prices/menu.html carries the drink-menu
-    layout with one selling price per non-Kem drink on its own line below
-    the item line; no cost figure, separator, or planning legend rides the
-    page; the Kem cold-foam builds stay unpriced.
+    layout with one selling price per non-Kem drink right-justified on the
+    drink's name row; no cost figure, separator, or planning legend rides
+    the page; the Kem cold-foam builds stay unpriced.
     """
 
     def test_priced_menu_page_exists_in_the_build(self, no_fit_build):
@@ -3164,6 +3264,81 @@ class TestDrinksPrintItemGap:
             assert re.search(pattern, screen_css), (
                 f"{name}: the screen .items column-gap {expected} must stay; "
                 "the SITE-42 widening is print-only"
+            )
+
+
+class TestItemRowAnatomy:
+    """Needles pinning SITE-46's two-row item anatomy on the drinks family.
+
+    Row 1 (the .item-line) right-justifies the price with margin-left: auto
+    and keeps white-space: nowrap so the figure cannot break under the
+    name; row 2 (the .item-subline) is a full-width flex row leading with
+    the English subtitle and right-justifying the pills through the
+    established margin-left: auto vocabulary, so the cross-item pill
+    column alignment and the reserved-slot mechanism carry over exactly.
+    The screen rules cascade into print, so one copy carries both paths.
+    """
+
+    DRINKS_PAGES = (
+        "index.html",
+        "menu.html",
+        "menu/compact.html",
+        "prices.html",
+        "prices/compact.html",
+        "prices/menu.html",
+    )
+
+    PRICED_PAGES = ("prices.html", "prices/compact.html", "prices/menu.html")
+
+    def test_every_drinks_page_rides_the_subtitle_row(self, no_fit_build):
+        for name in self.DRINKS_PAGES:
+            page = (no_fit_build / name).read_text()
+            sublines = re.findall(
+                r'<div class="item-subline">.*?</div>', page, re.S
+            )
+            assert sublines, f"{name}: no subtitle rows rendered"
+            tags_total = page.count('<span class="tags">')
+            assert tags_total, f"{name}: no pills rendered"
+            assert sum(s.count('<span class="tags">') for s in sublines) == tags_total, (
+                f"{name}: every .tags container must ride the subtitle row"
+            )
+            vi_total = page.count('class="item-vi"')
+            assert vi_total, f"{name}: no English subtitles rendered"
+            assert (
+                sum(s.count('class="item-vi"') for s in sublines) == vi_total
+            ), f"{name}: every English subtitle must ride the subtitle row"
+
+    def test_name_row_right_justifies_the_price_without_wrapping(
+        self, no_fit_build
+    ):
+        for name in self.PRICED_PAGES:
+            page = (no_fit_build / name).read_text()
+            rule = re.search(r"\.price \{[^}]*\}", page)
+            assert rule, f"{name}: no .price rule"
+            assert "margin-left: auto;" in rule.group(0), (
+                f"{name}: the price must right-justify on the name row via "
+                "margin-left: auto"
+            )
+            assert "white-space: nowrap;" in rule.group(0), (
+                f"{name}: the price must carry white-space: nowrap so it "
+                "cannot break under the item name"
+            )
+
+    def test_subtitle_row_is_a_flex_row_right_justifying_the_pills(
+        self, no_fit_build
+    ):
+        for name in self.DRINKS_PAGES:
+            page = (no_fit_build / name).read_text()
+            subline_rule = re.search(r"\.item-subline \{[^}]*\}", page)
+            assert subline_rule, f"{name}: no .item-subline rule"
+            assert "display: flex;" in subline_rule.group(0), (
+                f"{name}: the subtitle row must be a full-width flex row"
+            )
+            tags_rule = re.search(r"\.tags \{[^}]*\}", page)
+            assert tags_rule, f"{name}: no .tags rule"
+            assert "margin-left: auto;" in tags_rule.group(0), (
+                f"{name}: the pills must right-justify on the subtitle row "
+                "via the margin-left: auto vocabulary"
             )
 
 

@@ -213,12 +213,18 @@
     align-items: baseline;
     gap: 0.3rem;
     white-space: nowrap;
+    margin-left: auto;
     font-size: 0.82rem;
     font-variant-numeric: tabular-nums;
   }
   .price-cost { font-size: 0.95em; color: var(--ink-muted); }
   .price-sep  { color: var(--rule); }
   .price-menu { font-size: 1.15em; font-weight: normal; color: var(--cobalt); }
+
+  .item-subline {
+    display: flex;
+    align-items: baseline;
+  }
 
   .item-vi {
     font-family: var(--names);
@@ -363,8 +369,8 @@
 
   <!--SECTIONS-->
 
-  <!-- below-line price element, placed by the renderer between the item
-       line and the subtitle:
+  <!-- price element, placed by the renderer inside the item line as its
+       right slot, after the item name:
        <span class="price"><span class="price-cost">$0.33</span><span class="price-sep">·</span><span class="price-menu">$1.17</span></span> -->
 
   <footer>
