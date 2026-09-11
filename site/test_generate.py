@@ -3467,12 +3467,19 @@ class TestPricesNavLinks:
         assert '<a href="../prices/compact.html">Giá</a>' in compact
 
     def test_every_page_links_the_priced_menu(self, no_fit_build):
-        # The priced menu is nav-linked from every other nav-carrying page
-        # under one consistent label; its own nav marks it current. The
-        # bar, kitchen, and pantry pages carry no footer nav element (their
-        # cross-page links ride a footer paragraph), so they are outside
-        # this needle.
-        for name in ("index.html", "menu.html", "prices.html"):
+        # The priced menu is linked from every published page under one
+        # consistent label: the nav-carrying pages link it in their navs
+        # and the bar, kitchen, and pantry pages (which carry no footer
+        # nav element) link it in their footer paragraphs after Giá. The
+        # priced menu's own nav marks it current.
+        for name in (
+            "index.html",
+            "menu.html",
+            "prices.html",
+            "bar.html",
+            "kitchen.html",
+            "pantry.html",
+        ):
             page = (no_fit_build / name).read_text()
             assert '<a href="prices/menu.html">Bảng Giá</a>' in page, name
         assert (
