@@ -398,7 +398,7 @@
       "id": "saigon-white-coffee",
       "name": "Saigon White Coffee",
       "nameVi": "Cà Phê Bạc Xỉu",
-      "description": "Bạc xỉu, the Saigon white coffee: southern Vietnam's milkier, sweeter cup, more milk than coffee poured over sweetened condensed milk. The condensed-milk counterpart of the House Latte, served hot or over ice like they do on the streets of Sài Gòn.",
+      "description": "Southern Vietnam's milkier, sweeter cup: more milk than coffee over sweetened condensed milk.",
       "categoryId": "ca-phe",
       "temperatures": [
         "hot",
@@ -413,7 +413,7 @@
       "id": "egg-coffee",
       "name": "Egg Coffee",
       "nameVi": "Cà Phê Trứng",
-      "description": "Hanoi's custard-cap coffee: strong coffee under a dense Egg Foam, served hot or over crushed ice.",
+      "description": "Northern Vietnam's custard-cap coffee: strong coffee under a dense egg foam.",
       "categoryId": "ca-phe",
       "temperatures": [
         "hot",
