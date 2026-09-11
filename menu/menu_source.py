@@ -369,8 +369,25 @@ def parse_drink_section(lines: list[str]) -> list[Item]:
     return items
 
 
-def parse_foam_matrix(lines: list[str]) -> list[str]:
-    builds: list[str] = []
+GITHUB_ANCHOR_NOISE_RE = re.compile(r"[^\w\s-]", re.UNICODE)
+
+
+def heading_anchor(text: str) -> str:
+    """GitHub-style anchor a markdown link uses for a heading: lowercased,
+    punctuation dropped, whitespace runs collapsed to single hyphens."""
+    slug = GITHUB_ANCHOR_NOISE_RE.sub("", text.strip().lower())
+    return re.sub(r"\s+", "-", slug)
+
+
+def parse_foam_matrix(lines: list[str]) -> list[tuple[str, str]]:
+    """Read the Foam Matrix rows as (build, anchor) pairs.
+
+    Each row links the build's own section heading by anchor, which is how
+    the parse later finds that build's prose; a row whose first cell
+    carries no link contributes no build.
+    """
+    builds: list[tuple[str, str]] = []
+    seen: set[str] = set()
     in_matrix = False
     for line in lines:
         if line.startswith("### "):
@@ -380,37 +397,126 @@ def parse_foam_matrix(lines: list[str]) -> list[str]:
             cells = [cell.strip() for cell in line.strip("|").split("|")]
             if not cells or set(cells[0]) <= {"-", " ", ":"}:
                 continue
-            link = re.match(r"\[([^\]]+)\]", cells[0])
+            link = re.match(r"\[([^\]]+)\]\(#([^)]+)\)", cells[0])
             if link:
                 build = link.group(1).strip()
-                if build.lower() not in {"build"} and build not in builds:
-                    builds.append(build)
+                if build.lower() not in {"build"} and build not in seen:
+                    seen.add(build)
+                    builds.append((build, link.group(2).strip()))
     return builds
 
 
-def foam_description(build: str, section_lines: list[str]) -> str | None:
-    headings = ["Base Foam"] if build == "Base" else [f"{build} Cold Foam"]
-    section_blocks = blocks(section_lines)
-    for index, (kind, text) in enumerate(section_blocks):
-        if kind == "heading" and text in headings:
-            for block_kind, block_text in section_blocks[index + 1:]:
-                if block_kind == "heading":
-                    break
-                if block_kind == "paragraph" and not is_serve_cue(block_text):
-                    return strip_markdown(block_text)
+def foam_anchor_map(section_lines: list[str]) -> dict[str, tuple[str, int]]:
+    """Map each heading's GitHub anchor to its (text, occurrence): the
+    first occurrence of a slug keeps the bare anchor and later duplicates
+    get -1, -2, ... suffixes, walked in document order, so a matrix row
+    pointing at a suffixed anchor resolves its own heading instead of
+    falling back to the legacy pattern."""
+    counts: dict[str, int] = {}
+    anchors: dict[str, tuple[str, int]] = {}
+    for line in section_lines:
+        match = HEADING_RE.match(line)
+        if not match:
+            continue
+        slug = heading_anchor(match.group(2))
+        seen = counts.get(slug, 0)
+        counts[slug] = seen + 1
+        anchors[slug if seen == 0 else f"{slug}-{seen}"] = (
+            match.group(2).strip(),
+            seen,
+        )
+    return anchors
+
+
+def foam_build_heading(
+    build: str, anchor: str, anchors: dict[str, tuple[str, int]]
+) -> tuple[str, int]:
+    """Resolve a foam build to its own section heading.
+
+    The matrix row anchors the build's real heading, looked up in the
+    section's anchor map; otherwise the legacy "Base Foam" / "{build}
+    Cold Foam" heading pattern applies, first occurrence.
+    """
+    resolved = anchors.get(anchor)
+    if resolved is not None:
+        return resolved
+    return ("Base Foam" if build == "Base" else f"{build} Cold Foam"), 0
+
+
+def foam_build_prose(
+    section_lines: list[str], heading: str, occurrence: int = 0
+) -> tuple[str | None, str | None]:
+    """Read a foam build's (Vietnamese name, description) from under its
+    own section heading.
+
+    The Vietnamese name follows the drinks convention: a heading one level
+    deeper than the build's own, before any structural heading ends the
+    build; occurrence selects which same-text heading owns the scan when
+    the section repeats a heading (GitHub suffixes the duplicates). The
+    description is the first paragraph under the build's heading, joined
+    from its wrapped source lines the way the drinks path reads a blocks()
+    paragraph, and only the first paragraph counts. The scan stops at the
+    first heading other than that deeper name heading, or at any heading
+    at the build heading's level or shallower, so a build with no deeper
+    name never inherits the next build's heading or prose.
+    """
+    name_vi: str | None = None
+    description: str | None = None
+    own_level: int | None = None
+    seen_heading = 0
+    paragraph: list[str] = []
+
+    def flush_paragraph() -> None:
+        nonlocal description, paragraph
+        lines, paragraph = paragraph, []
+        if description is not None or not lines:
+            return
+        joined = strip_markdown(" ".join(lines))
+        if joined and not is_serve_cue(joined):
+            description = joined
+
+    for line in section_lines:
+        match = HEADING_RE.match(line)
+        if match:
+            flush_paragraph()
+            level, text = len(match.group(1)), match.group(2).strip()
+            if own_level is None:
+                if text == heading:
+                    if seen_heading == occurrence:
+                        own_level = level
+                    seen_heading += 1
+                continue
+            if level <= own_level:
+                break
+            if name_vi is None and text not in STRUCTURAL_HEADINGS:
+                name_vi = text
+                continue
             break
-    return FOAM_DESCRIPTION_FALLBACKS.get(build)
+        if own_level is None:
+            continue
+        stripped = line.strip()
+        if not stripped or stripped.startswith(("- ", "|")):
+            flush_paragraph()
+        else:
+            paragraph.append(stripped)
+        if description is not None and name_vi is not None:
+            break
+    flush_paragraph()
+    return name_vi, description
 
 
 def parse_foam_section(lines: list[str]) -> list[Item]:
     items: list[Item] = []
-    for build in parse_foam_matrix(lines):
+    anchors = foam_anchor_map(lines)
+    for build, anchor in parse_foam_matrix(lines):
         name_en = "Base Foam" if build == "Base" else f"{build} Cold Foam"
+        heading, occurrence = foam_build_heading(build, anchor, anchors)
+        name_vi, description = foam_build_prose(lines, heading, occurrence)
         items.append(
             Item(
                 name_en=name_en,
-                name_vi=FOAM_VIETNAMESE_NAMES.get(build),
-                description=foam_description(build, lines),
+                name_vi=name_vi or FOAM_VIETNAMESE_NAMES.get(build),
+                description=description or FOAM_DESCRIPTION_FALLBACKS.get(build),
                 temperatures=["iced"],
             )
         )

@@ -971,7 +971,7 @@ export const menuDocument: MenuDocument = {
       "id": "kem-trung",
       "name": "Egg Cold Foam",
       "nameVi": "Kem Trứng",
-      "description": "Egg yolk and condensed milk whisked to a dense, custardy cap.",
+      "description": "Northern Vietnam's hot foam: egg yolk and sweetened condensed milk whisked into a dense, custardy cap.",
       "categoryId": "kem",
       "temperatures": [
         "iced"
@@ -982,8 +982,8 @@ export const menuDocument: MenuDocument = {
     {
       "id": "kem-cacao-trung",
       "name": "Cocoa Egg Cold Foam",
-      "nameVi": "Kem Cacao Trứng",
-      "description": "Cocoa whisked into the egg foam for a chocolate custard cap.",
+      "nameVi": "Kem Trứng Cacao",
+      "description": "Custardy egg foam with dark cocoa.",
       "categoryId": "kem",
       "temperatures": [
         "iced"
@@ -994,8 +994,8 @@ export const menuDocument: MenuDocument = {
     {
       "id": "kem-matcha-trung",
       "name": "Matcha Egg Cold Foam",
-      "nameVi": "Kem Matcha Trứng",
-      "description": "Matcha sifted into the egg foam for a bittersweet custard cap.",
+      "nameVi": "Kem Trứng Matcha",
+      "description": "Custardy egg foam with matcha.",
       "categoryId": "kem",
       "temperatures": [
         "iced"
