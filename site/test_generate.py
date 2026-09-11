@@ -2946,6 +2946,20 @@ class TestSharedScreenCss:
                 "expected RuntimeError for an unresolved SHARED_SCREEN marker"
             )
 
+    def test_item_text_screen_rule_keeps_descriptions_at_normal_weight(
+        self, shared_print_pages
+    ):
+        for name, page in shared_print_pages.items():
+            assert ".item-vi { font-weight: 500; }" in page, (
+                f"{name}: the item-vi subtitle must keep the 500 weight"
+            )
+            assert ".item-vi, .item-desc { font-weight: 500; }" not in page, (
+                f"{name}: descriptions must not ride the 500-weight selector"
+            )
+            assert ".item-desc, .section-note { color: var(--ink); }" in page, (
+                f"{name}: the description ink color treatment must stay"
+            )
+
 
 class TestPlaqueDoubleRule:
     """Needles pinning the plaque-echo double rule on footers and section heads.

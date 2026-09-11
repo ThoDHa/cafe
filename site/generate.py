@@ -307,7 +307,7 @@ SHARED_SCREEN_RULES = {
         "  .footer-brand { color: var(--cobalt); font-weight: 600; }"
     ),
     "item-text": (
-        "  .item-vi, .item-desc { font-weight: 500; }\n"
+        "  .item-vi { font-weight: 500; }\n"
         "  .item-desc, .section-note { color: var(--ink); }"
     ),
 }
