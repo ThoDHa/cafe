@@ -1997,6 +1997,12 @@ def print_css_of(page_html: str, name: str) -> str:
     return page_html.split(marker, 1)[1].split("</style>", 1)[0]
 
 
+def narrow_screen_css_of(page_html: str, name: str) -> str:
+    marker = "@media (max-width: 640px) {"
+    assert marker in page_html, f"{name}: carries no max-width: 640px block"
+    return page_html.split(marker, 1)[1].split("\n  }", 1)[0]
+
+
 def read_workbook_rows() -> dict[str, pricing_source.DrinkCost]:
     return {
         row.name: row for row in pricing_source.read_drink_costs(CAFE_COSTS_XLSX)
@@ -3538,6 +3544,47 @@ class TestSharedScreenCss:
             assert ".item-desc { padding-left: 2ch; }" in page, (
                 f"{name}: descriptions must carry the shared whole-block 2ch "
                 "indent (the CSS reading of the owner's two-space indent)"
+            )
+
+
+class TestNarrowScreenFooterCss:
+    """Needles pinning the narrow-screen footer nav and section label rules.
+
+    The footer nav is one flex row of seven uppercase links; below ~410px
+    the row's minimum width exceeds the card's inner width and, unwrapped,
+    spills off both viewport edges. The narrow-screen block lets the nav
+    wrap onto centered rows. The same block lets the uppercase English
+    section label wrap instead of holding its no-wrap width, which alone
+    pushes pantry past a 320px viewport.
+    """
+
+    NAV_PAGES = (
+        "index.html",
+        "menu.html",
+        "menu/compact.html",
+        "prices.html",
+        "prices/compact.html",
+        "prices/menu.html",
+    )
+
+    def test_nav_carrying_pages_wrap_the_footer_nav_on_narrow_screens(
+        self, shared_print_pages
+    ):
+        for name in self.NAV_PAGES:
+            block = narrow_screen_css_of(shared_print_pages[name], name)
+            assert "footer nav { flex-wrap: wrap; }" in block, (
+                f"{name}: the seven-link footer nav must wrap onto centered "
+                "rows below 640px; unwrapped it overflows narrow phones"
+            )
+
+    def test_every_page_wraps_the_section_label_on_narrow_screens(
+        self, shared_print_pages
+    ):
+        for name, page in shared_print_pages.items():
+            block = narrow_screen_css_of(page, name)
+            assert ".section-en { white-space: normal; }" in block, (
+                f"{name}: the no-wrap section label must wrap below 640px; "
+                "its fixed width overflows a 320px viewport"
             )
 
 

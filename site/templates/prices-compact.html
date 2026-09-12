@@ -154,6 +154,12 @@
 
   @media (max-width: 640px) {
     .items { grid-template-columns: 1fr; grid-auto-flow: row; }
+    /* The seven-link nav's minimum width exceeds a narrow card; wrap the
+       overflow onto centered rows instead of spilling off screen. */
+    footer nav { flex-wrap: wrap; }
+    /* The uppercase label holds its one-line width; wrapping keeps long
+       section names inside the card. */
+    .section-en { white-space: normal; }
   }
 
   /* ---------- menu items ---------- */
