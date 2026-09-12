@@ -64,6 +64,16 @@ def read_readme_value(workbook: openpyxl.Workbook, coordinate: str) -> float:
     return float(workbook["Read Me"][coordinate].value)
 
 
+def read_operating_cost() -> float:
+    """Return the Read Me operating cost from the live cost workbook.
+
+    The three cost pins read this same value, so one accessor keeps the
+    B13 contract addressed in a single place.
+    """
+
+    return read_readme_value(open_costs_workbook(), OPERATING_COST_CELL)
+
+
 def read_drink_cell(
     workbook: openpyxl.Workbook, drink_name: str, column: str
 ) -> float:
@@ -173,7 +183,7 @@ class TestReadDrinkCosts:
         # The expected count derives from the Drinks sheet at test time:
         # the owner adds rows as live data (29 grew to 32 mid-build), so
         # pinning a count would break on every legitimate edit.
-        workbook = openpyxl.load_workbook(CAFE_COSTS_XLSX)
+        workbook = open_costs_workbook()
         sheet = workbook[pricing_source.DRINKS_SHEET]
         sheet_row_count = sum(
             1
@@ -189,7 +199,7 @@ class TestReadDrinkCosts:
         # The expected order derives from the Drinks sheet at test time:
         # the owner reorders and renames rows as live data, so pinning
         # names would break on every legitimate edit.
-        workbook = openpyxl.load_workbook(CAFE_COSTS_XLSX)
+        workbook = open_costs_workbook()
         sheet = workbook[pricing_source.DRINKS_SHEET]
         sheet_names = [
             sheet[f"{pricing_source.DRINK_NAME_COLUMN}{row}"].value
@@ -207,7 +217,7 @@ class TestReadDrinkCosts:
         # ingredient cost. The operating cost value is read live; a
         # future structural change to the D-column formulas must update
         # this pin's shape.
-        operating_cost = read_readme_value(open_costs_workbook(), OPERATING_COST_CELL)
+        operating_cost = read_operating_cost()
 
         black_coffee = read_rows_by_name()["Black Coffee"]
 
@@ -234,7 +244,7 @@ class TestReadDrinkCosts:
         # 1 batch concentrate + 25g syrup dose + 150g whole milk, straight
         # from the workbook's Bases D2, Bases D5, and Ingredients E3 chains,
         # plus the flat operating cost the Total Cost column adds.
-        operating_cost = read_readme_value(open_costs_workbook(), OPERATING_COST_CELL)
+        operating_cost = read_operating_cost()
 
         house_latte = read_rows_by_name()["House Latte"]
 
@@ -262,7 +272,7 @@ class TestReadDrinkCosts:
         )
 
     def test_hot_tea_cost_matches_hand_derived_tea_weight(self):
-        operating_cost = read_readme_value(open_costs_workbook(), OPERATING_COST_CELL)
+        operating_cost = read_operating_cost()
 
         hot_tea = read_rows_by_name()["Hot Tea"]
 
