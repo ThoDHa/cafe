@@ -2347,12 +2347,14 @@ class TestPricesRender:
     def test_priced_pages_render_through_their_own_templates(self, no_fit_build):
         regular = (no_fit_build / "prices.html").read_text()
         compact = (no_fit_build / "prices/compact.html").read_text()
-        assert "<title>Cafe Ông Thọ · Giá</title>" in regular
-        assert "<title>Cafe Ông Thọ · Giá · In</title>" in compact
+        # The priced pages share the menu's <title> by the header-identity
+        # decision, so the PDF hrefs carry the template distinction here.
+        assert MENU_TITLE_TAG in regular
+        assert MENU_TITLE_TAG in compact
         assert 'href="prices.pdf">PDF View</a>' in regular
         assert 'href="compact.pdf">PDF View</a>' in compact
         priced_menu = (no_fit_build / "prices/menu.html").read_text()
-        assert "<title>Cafe Ông Thọ · Bảng Giá</title>" in priced_menu
+        assert MENU_TITLE_TAG in priced_menu
         assert 'href="menu.pdf">PDF View</a>' in priced_menu
 
     def test_price_sits_in_the_item_line_after_the_item_name(self, no_fit_build):
@@ -2466,7 +2468,7 @@ class TestPricesMenuPage:
         assert '<a href="#" aria-current="page">Bảng Giá</a>' in page
         assert '<a class="pdf-link" href="menu.pdf">PDF View</a>' in page
         assert '<a href="../menu.html">Thực Đơn</a>' in page
-        assert '<a href="prices.html">Giá</a>' in page
+        assert '<a href="../prices.html">Giá</a>' in page
 
 
 class TestPriceWeight:
@@ -3306,6 +3308,10 @@ class TestBuildSite:
         assert captured == generate.PRINT_HEADROOM_STEPS
 
 
+# The <title> element shared by menu.html and the three priced pages by
+# the header-identity decision.
+MENU_TITLE_TAG = "<title>Cafe Ông Thọ</title>"
+
 PUBLISHED_PAGES = (
     "index.html",
     "menu.html",
@@ -3901,4 +3907,116 @@ class TestPricesNavLinks:
             page = (no_fit_build / name).read_text()
             expected = 1 if name in nav_pages else 0
             assert page.count('aria-current="page"') == expected, name
+
+
+class TestPricedHeaderIdentity:
+    """The three priced pages carry exactly the regular menu's header.
+
+    Owner direction 2026-09-12: the priced menu and the cost-reference
+    pair wear the drinks menu's header plaque and <title> ("Gia and Bang
+    Gia should have the same header as thuc don"). The prices pair keeps
+    its planning section-note: the note is body content, not header.
+    """
+
+    PRICED_PAGES = (
+        "prices/menu.html",
+        "prices.html",
+        "prices/compact.html",
+    )
+
+    HEADER_BLOCK_RE = re.compile(r"<header>.*?</header>", re.S)
+    TITLE_RE = re.compile(r"<title>[^<]*</title>")
+
+    OLD_PRICED_HEADER_STRINGS = (
+        '<p class="eyebrow">giá bán</p>',
+        '<p class="eyebrow">giá vốn · giá bán gợi ý</p>',
+        "bảng giá tham khảo",
+        "<title>Cafe Ông Thọ · Bảng Giá</title>",
+        "<title>Cafe Ông Thọ · Giá</title>",
+        "<title>Cafe Ông Thọ · Giá · In</title>",
+    )
+
+    def _sole_match(self, pattern: re.Pattern, page: str, name: str, what: str) -> str:
+        matches = pattern.findall(page)
+        assert len(matches) == 1, (
+            f"{name}: expected exactly one {what}, found {len(matches)}"
+        )
+        return matches[0]
+
+    def test_priced_pages_carry_the_menu_header_block_and_title(self, no_fit_build):
+        menu_page = (no_fit_build / "menu.html").read_text()
+        menu_header = self._sole_match(
+            self.HEADER_BLOCK_RE, menu_page, "menu.html", "<header> block"
+        )
+        menu_title = self._sole_match(
+            self.TITLE_RE, menu_page, "menu.html", "<title>"
+        )
+        for name in self.PRICED_PAGES:
+            page = (no_fit_build / name).read_text()
+            assert self._sole_match(
+                self.HEADER_BLOCK_RE, page, name, "<header> block"
+            ) == menu_header, f"{name}: the header block must equal menu.html's"
+            assert self._sole_match(
+                self.TITLE_RE, page, name, "<title>"
+            ) == menu_title, f"{name}: the <title> must equal menu.html's"
+
+    def test_old_priced_header_strings_are_gone(self, no_fit_build):
+        for name in self.PRICED_PAGES:
+            page = (no_fit_build / name).read_text()
+            for stale in self.OLD_PRICED_HEADER_STRINGS:
+                assert stale not in page, (
+                    f"{name}: old priced-header string {stale!r} must be gone"
+                )
+
+
+class TestLinkIntegrity:
+    """Every internal href on every built page resolves inside the build.
+
+    Owner direction 2026-09-12: "make srue teh links work for the
+    webpages". A relative href (its #fragment or ?query suffix stripped,
+    so the link is judged by its file target) is resolved against its
+    page's own directory (pages live at the root or under menu/ or
+    prices/) and must hit a built file, so a path that only works from
+    the root fails here by page, href, and resolved path instead of
+    shipping a dead link. Every page must yield at least one internal
+    href, so an extractor that stops matching the templates fails loudly
+    instead of passing vacuously.
+    """
+
+    def test_every_internal_href_resolves_inside_the_build(self, no_fit_build):
+        broken = []
+        pages_without_internal_hrefs = []
+        for name in PUBLISHED_PAGES:
+            page = (no_fit_build / name).read_text()
+            page_dir = os.path.dirname(name)
+            internal_hrefs = 0
+            for href in re.findall(r'href="([^"]+)"', page):
+                if href.startswith(("#", "http://", "https://", "mailto:")):
+                    continue
+                internal_hrefs += 1
+                target = re.split(r"[?#]", href, maxsplit=1)[0]
+                resolved = os.path.normpath(os.path.join(page_dir, target))
+                if resolved.endswith(".pdf"):
+                    # The no-fit build ships no PDFs by design; a PDF link
+                    # is intact when the fit pass writes a PDF at exactly
+                    # the resolved path.
+                    missing = resolved not in generate.PDF_PAGE_BUDGETS
+                else:
+                    missing = not (no_fit_build / resolved).is_file()
+                if missing:
+                    broken.append((name, href, resolved))
+            if internal_hrefs == 0:
+                pages_without_internal_hrefs.append(name)
+        assert pages_without_internal_hrefs == [], (
+            "no internal href found on these pages; either a page lost "
+            "its navigation or the href extraction no longer matches the "
+            "template quoting: " + ", ".join(pages_without_internal_hrefs)
+        )
+        assert broken == [], (
+            "broken internal links as (page, href, resolved missing path): "
+            + "; ".join(
+                f"({page}, {href!r}, {resolved})"
+                for page, href, resolved in broken
+            )
+        )
 
