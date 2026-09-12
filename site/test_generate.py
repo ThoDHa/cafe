@@ -367,6 +367,15 @@ EGG_FOAM_NEEDLES = {
     ),
 }
 
+# The Kem section's recipes-sourced note: the first paragraph under
+# "## Foams", with the [Egg Foam](#base-egg-foam) link rendered as its
+# plain text, exactly like the drinks sections' notes.
+KEM_SECTION_NOTE = (
+    "Creamy foam caps for any drink: the cold foams top iced drinks, "
+    "and the hot Egg Foam tops hot ones."
+)
+KEM_SECTION_NOTE_LINE = f'<p class="section-note">{KEM_SECTION_NOTE}</p>'
+
 
 def parsed_fixture():
     return generate.parse_menu(FIXTURE)
@@ -622,6 +631,34 @@ class TestFoams:
         honey = kem.items[0]
         assert honey.name_vi is None
         assert honey.description is None
+
+    def test_kem_section_note_is_the_first_paragraph(self):
+        menu = parsed_fixture()
+        assert menu.by_id("kem").note == (
+            "Cold foam, spooned over the finished drink."
+        )
+
+    def test_kem_section_note_strips_link_syntax_like_item_prose(self):
+        fixture = EGG_FOAM_FIXTURE.replace(
+            "and the hot egg foam tops hot ones.",
+            "and the hot [Egg Foam](#base-egg-foam) tops hot ones.",
+        )
+        note = menu_source.parse_menu(fixture).by_id("kem").note
+        assert note == KEM_SECTION_NOTE
+
+    def test_kem_section_note_is_only_the_first_paragraph(self):
+        fixture = EGG_FOAM_FIXTURE.replace(
+            "Creamy foam caps for any drink: the cold foams top iced "
+            "drinks, and the hot egg foam tops hot ones.",
+            "Creamy foam caps for any drink.\n\n"
+            "A second paragraph the note must not absorb.",
+        )
+        note = menu_source.parse_menu(fixture).by_id("kem").note
+        assert note == "Creamy foam caps for any drink."
+
+    def test_kem_section_without_leading_paragraph_has_no_note(self):
+        menu = menu_source.parse_menu(UNRESOLVED_ANCHOR_FOAM_FIXTURE)
+        assert menu.by_id("kem").note is None
 
 
 class TestOverrides:
@@ -1364,15 +1401,20 @@ class TestRealRecipesFile:
         assert vi["Strawberry Matcha"] == "Matcha Dâu"
         assert vi["Milk Limeade"] == "Chanh Sữa Dầm"
 
-    def test_real_category_blurbs_parsed_for_all_drink_sections(self):
+    def test_real_category_blurbs_parsed_for_all_sections(self):
         menu = generate.parse_menu(RECIPES_CAFE.read_text())
         expected = {
             "ca-phe": "Sweet, milky, shaken, layered, sparkling, or brewed by the cup: coffee every way.",
             "tra": "Milky tea, fresh lemon tea, or a straight cup brewed by the leaf.",
             "mat-cha": "Whisked matcha as lattes, milk floats, sodas, and tonics, plus the coffee-style undertow and affogato parallels.",
             "giai-khat": "Strawberry and lime sodas, a milk limeade, strawberry milk, and cocoa.",
+            "kem": KEM_SECTION_NOTE,
         }
         assert {s.id: s.note for s in menu.sections if s.note} == expected
+
+    def test_real_kem_section_note_parsed_from_the_foams_heading(self):
+        menu = menu_source.parse_menu(RECIPES_CAFE.read_text())
+        assert menu.by_id("kem").note == KEM_SECTION_NOTE
 
 
 class TestRealCocktailsFile:
@@ -1945,6 +1987,12 @@ class TestRender:
             assert blurb in page, f"missing blurb {blurb!r}"
         assert 'class="section-note"' in page
 
+    def test_render_carries_the_kem_section_note_in_its_section(self):
+        menu = generate.parse_menu(RECIPES_CAFE.read_text())
+        page = generate.render_menu_page(menu)
+        kem_block = section_block_for_title(page, menu.by_id("kem").title_en)
+        assert KEM_SECTION_NOTE_LINE in kem_block
+
     def test_render_escapes_item_text(self):
         menu = generate.parse_menu(RECIPES_CAFE.read_text())
         menu.by_id("ca-phe").items[0].description = "<script>alert(1)</script>"
@@ -1989,6 +2037,12 @@ class TestCompactRender:
             "bản rút gọn",
         ]:
             assert needle in page, f"missing {needle!r}"
+
+    def test_compact_carries_the_kem_section_note_in_its_section(self):
+        menu = generate.parse_menu(RECIPES_CAFE.read_text())
+        page = generate.render_compact_page(menu)
+        kem_block = section_block_for_title(page, menu.by_id("kem").title_en)
+        assert KEM_SECTION_NOTE_LINE in kem_block
 
 
 def print_css_of(page_html: str, name: str) -> str:
@@ -2461,6 +2515,13 @@ class TestPricesMenuPage:
         )
         assert tagged == ["MÁT-CHA"]
 
+    def test_priced_menu_carries_the_kem_section_note_in_its_section(self):
+        menu = generate.parse_menu(RECIPES_CAFE.read_text())
+        _, costs = joined_prices()
+        page = generate.render_prices_menu_page(menu, costs)
+        kem_block = section_block_for_title(page, menu.by_id("kem").title_en)
+        assert KEM_SECTION_NOTE_LINE in kem_block
+
     def test_priced_menu_marks_itself_current_and_links_its_pdf(
         self, no_fit_build
     ):
@@ -2549,6 +2610,20 @@ def item_block_for_name(page: str, name_en: str) -> str:
     )
     block_start = page.rindex('<div class="item">', 0, anchor_at)
     return item_blocks(page[block_start:])[0]
+
+
+def section_block_for_title(page: str, title_en: str) -> str:
+    """Return one built page's <section> element block by its English title.
+
+    The block runs from the section's opening tag to its close, so
+    section-level needles (the note under the head) can be placed
+    inside their own section rather than anywhere on the page.
+    """
+
+    for block in re.findall(r"<section[ >].*?</section>", page, re.S):
+        if f'<span class="section-en">{title_en}</span>' in block:
+            return block
+    raise AssertionError(f"no section titled {title_en!r} on the page")
 
 
 class TestCustomerPairUnpriced:

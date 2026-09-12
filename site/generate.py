@@ -391,9 +391,11 @@ def parse_menu(text: str) -> Menu:
     kem_id = menu_source.KEM_SECTION[0]
     sections = []
     for source_section in source_menu.sections:
-        note = None
-        if source_section.id != kem_id:
-            note = parse_section_note(top_sections.get(titles[source_section.id], []))
+        note = (
+            source_section.note
+            if source_section.id == kem_id
+            else parse_section_note(top_sections.get(titles[source_section.id], []))
+        )
         sections.append(
             Section(
                 id=source_section.id,

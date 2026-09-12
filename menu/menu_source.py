@@ -10,9 +10,11 @@ It stays stdlib-only so the site build can run it under
 
 Only menu-shape knowledge that recipes cannot express lives here as
 configuration: section titles, Vietnamese names recipes omit, and the one
-temperature (Hot Tea) the prose cannot prove. The ordering generator adds
+temperature (Hot Tea) the prose cannot prove. The Kem section's own note
+paragraph is parsed here beside its items; the ordering generator adds
 ordering-only enrichment from its own checked-in config; the site adds
-blurbs, print fitting, and rendering on top of the parsed menu.
+the drinks sections' notes, print fitting, and rendering on top of the
+parsed menu.
 """
 
 from __future__ import annotations
@@ -192,10 +194,19 @@ class Item:
 
 @dataclass
 class Section:
+    """One drinks menu section.
+
+    note carries the section's own first-paragraph blurb from the
+    recipes; today only the Kem section's is parsed here, while the
+    drinks sections' notes stay a site-side concern built on the same
+    recipes paragraphs.
+    """
+
     id: str
     title_vi: str
     title_en: str
     items: list[Item] = field(default_factory=list)
+    note: str | None = None
 
 
 @dataclass
@@ -320,6 +331,21 @@ def first_paragraph_after_name(drink_blocks: list[tuple[str, str]]) -> str | Non
             cleaned = re.sub(r"^Hot only:\s*", "", cleaned, flags=re.IGNORECASE)
             return cleaned or None
         break
+    return None
+
+
+def first_paragraph_note(lines: list[str]) -> str | None:
+    """Read a section's note: the first paragraph under its heading,
+    markdown-stripped the way item prose is handled.
+
+    Only the first paragraph counts (the drinks sections' convention),
+    so a section that opens with a table or a deeper heading, or whose
+    first paragraph strips to nothing, yields None.
+    """
+    for kind, text in blocks(lines):
+        if kind == "paragraph":
+            return strip_markdown(text) or None
+        return None
     return None
 
 
@@ -1181,9 +1207,11 @@ def parse_menu(text: str) -> Menu:
             "exactly one foam section is expected"
         )
     if kem_titles_present:
+        kem_lines = top_sections[kem_titles_present[0]]
         mapped[kem_id] = Section(
             id=kem_id, title_vi=kem_vi, title_en=kem_en,
-            items=parse_foam_section(top_sections[kem_titles_present[0]]),
+            items=parse_foam_section(kem_lines),
+            note=first_paragraph_note(kem_lines),
         )
     order = [spec[0] for spec in SECTION_MAP.values()] + [kem_id]
     return Menu(sections=[mapped[section_id] for section_id in order if section_id in mapped])
