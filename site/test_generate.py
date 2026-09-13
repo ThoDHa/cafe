@@ -368,12 +368,9 @@ EGG_FOAM_NEEDLES = {
 }
 
 # The Kem section's recipes-sourced note: the first paragraph under
-# "## Foams", with the [Egg Foam](#base-egg-foam) link rendered as its
-# plain text, exactly like the drinks sections' notes.
-KEM_SECTION_NOTE = (
-    "Creamy foam caps for any drink: the cold foams top iced drinks, "
-    "and the hot Egg Foam tops hot ones."
-)
+# "## Foams", with links rendered as plain text, exactly like the drinks
+# sections' notes.
+KEM_SECTION_NOTE = "Rich, airy cream caps: the finish for any drink."
 KEM_SECTION_NOTE_LINE = f'<p class="section-note">{KEM_SECTION_NOTE}</p>'
 
 
@@ -644,7 +641,10 @@ class TestFoams:
             "and the hot [Egg Foam](#base-egg-foam) tops hot ones.",
         )
         note = menu_source.parse_menu(fixture).by_id("kem").note
-        assert note == KEM_SECTION_NOTE
+        assert note == (
+            "Creamy foam caps for any drink: the cold foams top iced "
+            "drinks, and the hot Egg Foam tops hot ones."
+        )
 
     def test_kem_section_note_is_only_the_first_paragraph(self):
         fixture = EGG_FOAM_FIXTURE.replace(
@@ -2054,7 +2054,12 @@ def print_css_of(page_html: str, name: str) -> str:
 def narrow_screen_css_of(page_html: str, name: str) -> str:
     marker = "@media (max-width: 640px) {"
     assert marker in page_html, f"{name}: carries no max-width: 640px block"
-    return page_html.split(marker, 1)[1].split("\n  }", 1)[0]
+    remainder = page_html.split(marker, 1)[1]
+    terminator = "\n  }"
+    assert terminator in remainder, (
+        f"{name}: max-width: 640px block closer shifted or missing"
+    )
+    return remainder.split(terminator, 1)[0]
 
 
 def read_workbook_rows() -> dict[str, pricing_source.DrinkCost]:
@@ -3667,6 +3672,34 @@ class TestNarrowScreenFooterCss:
                 f"{name}: the no-wrap section label must wrap below 640px; "
                 "its fixed width overflows a 320px viewport"
             )
+
+
+class TestNarrowScreenCssExtractor:
+    """Pins the narrow-block extractor's loudness on a shifted closer.
+
+    `narrow_screen_css_of` cuts the max-width: 640px block on the
+    indentation-coupled "\n  }" closer; a template whose closer shifts
+    indent must fail the extraction loudly, naming the page, instead of
+    silently widening the block to the rest of the stylesheet.
+    """
+
+    # The closer's one-space indent mirrors a one-step template edit; the
+    # body rule is the section-label needle, so a silently widened block
+    # would still contain it and hide the shift.
+    SHIFTED_CLOSER_PAGE = (
+        "<style>\n"
+        "  @media (max-width: 640px) {\n"
+        '    .section-en { white-space: normal; }\n'
+        " }\n"
+        "</style>\n"
+    )
+
+    def test_shifted_block_closer_fails_loudly_naming_the_page(self):
+        with pytest.raises(AssertionError) as excinfo:
+            narrow_screen_css_of(self.SHIFTED_CLOSER_PAGE, "menu.html")
+        message = str(excinfo.value)
+        assert "menu.html" in message
+        assert "closer" in message
 
 
 class TestDrinksPrintItemGap:
