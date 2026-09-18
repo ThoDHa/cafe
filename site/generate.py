@@ -133,7 +133,10 @@ COMPACT_PRINT_ROOT_STEP = 0.25
 # whole-px step on menu, bar, and kitchen (bar 16→15, kitchen 14→13) but by
 # two 0.25-steps on compact (13.75→13.25; one step there ships a 2-page
 # no-JS Letter print over compact's 1-page budget). Raise a page's entry if
-# the sensor ever measures a wider divergence there.
+# the sensor ever measures a wider divergence there. The 1.8cm bottom band
+# (2026-09-18) pushed the compact fits to the 11px floor clamp, so compact
+# ships the floor root, not the calibrated 13.25; raising the entry changes
+# nothing until the fit climbs back above the floor.
 PRINT_HEADROOM_STEPS = {
     "menu.html": 1,
     "menu/compact.html": 2,
@@ -253,7 +256,10 @@ header {
 # (`.drip`/`footer nav`/`footer a`/`.own-page`, the per-page type scales)
 # remain in the templates.
 SHARED_PRINT_RULES = {
-    "page": "  @page { margin: 0.6cm; margin-bottom: 1.2cm; }",
+    # margin-bottom must clear the ~12.7mm unprintable bottom zone of common
+    # printers: the @bottom-center brand line centers its glyphs well inside
+    # the 1.8cm band, so it shows on paper instead of clipping at the edge.
+    "page": "  @page { margin: 0.6cm; margin-bottom: 1.8cm; }",
     "base": "    html, body { background: var(--sua); padding: 0; }",
     "card": "    .card { max-width: none; border: none; box-shadow: none; padding: 0.4cm; }",
     # overflow: hidden keeps .section-head monolithic for print fragmentation
