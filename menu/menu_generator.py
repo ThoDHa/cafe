@@ -1,8 +1,8 @@
 """Generate menu/menu.json from the recipes repository plus the ordering
 enrichment config.
 
-Invoked as `uv run generate-menu` (see the pyproject scripts and the
-Makefile generate-menu target). The shared stdlib parser in
+Invoked as `make menu` (uv run --with jsonschema python
+menu/menu_generator.py). The shared stdlib parser in
 menu/menu_source.py reads the recipes repository's cafe.md; the checked-in
 menu/ordering-overrides.json supplies version, orderRules, categories, and
 modifierGroups plus the ordering-only item enrichment the recipes cannot
@@ -19,13 +19,13 @@ from pathlib import Path
 
 import jsonschema
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_RECIPES = REPO_ROOT.parent / "recipes" / "cafe.md"
 DEFAULT_OVERRIDES = REPO_ROOT / "menu" / "ordering-overrides.json"
 DEFAULT_OUTPUT = REPO_ROOT / "menu" / "menu.json"
 SCHEMA_FILENAME = "menu.schema.json"
 
-sys.path.insert(0, str(REPO_ROOT / "menu"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import menu_source  # noqa: E402
 

@@ -1,6 +1,6 @@
 """Shared recipes-parsing core for both menu generators.
 
-site/generate.py (the public menus site) and server/app/menu_generator.py
+site/generate.py (the public menus site) and menu/menu_generator.py
 (the ordering menu) both derive their drinks from the recipes repository's
 cafe.md. This module holds everything that parsing has in common: drink
 extraction from the markdown, the section mapping onto menu sections,

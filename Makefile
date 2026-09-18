@@ -1,30 +1,13 @@
-.PHONY: help dev test build start contract menu menudata site test-site verify-print-chrome
+.PHONY: help menu test-menu site test-site verify-print-chrome
 
 help:
-	@echo "targets: dev test build start contract menu menudata site test-site verify-print-chrome"
-
-dev:
-	$(MAKE) -C server dev & $(MAKE) -C web dev & wait
-
-test:
-	$(MAKE) -C server test
-	$(MAKE) -C web test
-
-build: contract
-	$(MAKE) -C web build
-
-start:
-	$(MAKE) -C server start
-
-contract:
-	$(MAKE) -C server export-openapi
-	$(MAKE) -C web generate-types
+	@echo "targets: menu test-menu site test-site verify-print-chrome"
 
 menu:
-	$(MAKE) -C server generate-menu
+	uv run --with jsonschema python menu/menu_generator.py
 
-menudata:
-	uv run python menu/generate_menudata.py
+test-menu:
+	uv run --with pytest --with jsonschema pytest menu/ -q
 
 site:
 	uv run --with weasyprint==70.0 --with openpyxl python site/generate.py

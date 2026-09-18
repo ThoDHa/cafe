@@ -12,13 +12,16 @@ cannot drift.
 import json
 import re
 import shutil
+import sys
 import textwrap
 from collections import Counter
 from pathlib import Path
 
 import pytest
 
-from app.menu_generator import (
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from menu_generator import (  # noqa: E402
     MenuGenerationError,
     build_document,
     generate,
@@ -26,10 +29,10 @@ from app.menu_generator import (
     serialize_document,
 )
 
-MENU_DIR = Path(__file__).resolve().parents[2] / "menu"
+MENU_DIR = Path(__file__).resolve().parent
 MENU_JSON = MENU_DIR / "menu.json"
 MENU_SCHEMA = MENU_DIR / "menu.schema.json"
-DEFAULT_RECIPES = Path(__file__).resolve().parents[2].parent / "recipes" / "cafe.md"
+DEFAULT_RECIPES = Path(__file__).resolve().parents[1].parent / "recipes" / "cafe.md"
 DEFAULT_OVERRIDES = MENU_DIR / "ordering-overrides.json"
 
 SWEETNESS_SCALE = ["full", "75", "50", "25", "none"]

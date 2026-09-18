@@ -14,7 +14,7 @@ from pathlib import Path
 
 import jsonschema
 
-MENU_DIR = Path(__file__).resolve().parents[2] / "menu"
+MENU_DIR = Path(__file__).resolve().parent
 ASSETS_DIR = MENU_DIR / "assets"
 
 KEM_ID_PREFIX = "kem-"

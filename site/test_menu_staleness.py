@@ -1,11 +1,9 @@
-"""Staleness guards for the committed ordering menu and its web copy.
+"""Staleness guard for the committed ordering menu.
 
 Regenerates menu/menu.json from the recipes checkout plus the checked-in
 menu/ordering-overrides.json through the shared parsing core and fails
 loudly when the committed artifact differs, so the sources and the
-artifact cannot drift. The web dev/test fallback copy of the same
-document, web/src/views/ordering/lib/menuData.ts, is held to the
-committed menu.json the same way. Lives beside the site tests because the
+artifact cannot drift. Lives beside the site tests because the
 Pages workflow's test step is where the sibling recipes checkout is
 guaranteed to exist; RECIPES_CAFE points at the recipes file there, as
 for the site tests.
@@ -22,15 +20,10 @@ RECIPES_CAFE = Path(
     os.environ.get("RECIPES_CAFE", REPO_ROOT.parent / "recipes" / "cafe.md")
 )
 MENU_DIR = REPO_ROOT / "menu"
-MENUDATA_TS = (
-    REPO_ROOT / "web" / "src" / "views" / "ordering" / "lib" / "menuData.ts"
-)
-MENUDATA_EXPORT = "export const menuDocument"
 
 sys.path.insert(0, str(MENU_DIR))
 
 import menu_source  # noqa: E402
-import generate_menudata  # noqa: E402
 
 BLOCK_KEYS = ("version", "orderRules", "categories", "modifierGroups")
 ITEM_FIELDS = (
@@ -93,87 +86,4 @@ def test_committed_menu_matches_recipes_plus_overrides() -> None:
         "menu/menu.json is stale against the recipes and "
         "menu/ordering-overrides.json; regenerate with `make menu`:\n"
         + "\n".join(f"  - {problem}" for problem in problems)
-    )
-
-
-def parse_menudata_literal(text: str) -> dict:
-    """Parse the menuDocument object literal out of menuData.ts as JSON.
-
-    The file's header comment and typed export prefix are TS, so slice
-    from the first `{` after the `export const menuDocument` marker to
-    its matching close brace (brace counting that skips string
-    literals), then require the slice to be strict JSON: menuData.ts
-    must keep its object literal double-quoted with no trailing commas.
-    """
-    marker_at = text.index(MENUDATA_EXPORT)
-    start = text.index("{", text.index("=", marker_at))
-    depth = 0
-    index = start
-    in_string = False
-    quote = ""
-    while index < len(text):
-        char = text[index]
-        if in_string:
-            if char == "\\":
-                index += 2
-                continue
-            if char == quote:
-                in_string = False
-        elif char in "\"'`":
-            in_string = True
-            quote = char
-        elif char == "{":
-            depth += 1
-        elif char == "}":
-            depth -= 1
-            if depth == 0:
-                literal = text[start : index + 1]
-                try:
-                    return json.loads(literal)
-                except json.JSONDecodeError as error:
-                    raise AssertionError(
-                        f"{MENUDATA_TS.relative_to(REPO_ROOT)}: the "
-                        "menuDocument object literal is not strict JSON "
-                        f"(double-quoted keys, no trailing commas): {error}"
-                    ) from error
-        index += 1
-    raise AssertionError(
-        f"{MENUDATA_TS.relative_to(REPO_ROOT)}: no closing brace after "
-        f"'{MENUDATA_EXPORT}'"
-    )
-
-
-def with_type_defaults(document: dict) -> dict:
-    """Fill the fields menu.json omits but the web type requires.
-
-    The generated MenuDocument type makes imagePath, defaultOptionId and
-    defaultByTemperature non-optional nullables, so menuData.ts spells
-    them out as nulls; apply the generator's normalization to both sides
-    before comparing.
-    """
-    filled = json.loads(json.dumps(document))
-    return generate_menudata.normalize(filled)
-
-
-def test_menudata_matches_committed_menu() -> None:
-    committed = json.loads((MENU_DIR / "menu.json").read_text(encoding="utf-8"))
-    copied = parse_menudata_literal(MENUDATA_TS.read_text(encoding="utf-8"))
-    problems = differences(
-        with_type_defaults(committed), with_type_defaults(copied)
-    )
-    assert problems == [], (
-        f"{MENUDATA_TS.relative_to(REPO_ROOT)} is stale against "
-        "menu/menu.json; regenerate with `make menudata` "
-        "(menu/generate_menudata.py):\n"
-        + "\n".join(f"  - {problem}" for problem in problems)
-    )
-
-
-def test_menudata_is_byte_identical_to_generator_output() -> None:
-    document = json.loads((MENU_DIR / "menu.json").read_text(encoding="utf-8"))
-    expected = generate_menudata.render(document)
-    actual = MENUDATA_TS.read_text(encoding="utf-8")
-    assert actual == expected, (
-        f"{MENUDATA_TS.relative_to(REPO_ROOT)} does not match the output of "
-        "menu/generate_menudata.py; regenerate with `make menudata`"
     )
