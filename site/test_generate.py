@@ -1993,6 +1993,12 @@ class TestRender:
         kem_block = section_block_for_title(page, menu.by_id("kem").title_en)
         assert KEM_SECTION_NOTE_LINE in kem_block
 
+    def test_render_has_four_drip_dividers_between_five_sections(self):
+        menu = generate.parse_menu(RECIPES_CAFE.read_text())
+        page = generate.render_menu_page(menu)
+        assert len(menu.sections) == 5
+        assert drip_divider_count(page) == len(menu.sections) - 1
+
     def test_render_escapes_item_text(self):
         menu = generate.parse_menu(RECIPES_CAFE.read_text())
         menu.by_id("ca-phe").items[0].description = "<script>alert(1)</script>"
@@ -2403,6 +2409,18 @@ class TestPricesRender:
         compact = generate.render_prices_compact_page(sections, costs)
         assert 'class="own-page"' not in compact
 
+    def test_regular_prices_page_has_three_drip_dividers_between_four_sections(
+        self,
+    ):
+        sections, costs = joined_prices()
+        page = generate.render_prices_page(sections, costs)
+        assert len(sections) == 4
+        assert drip_divider_count(page) == len(sections) - 1
+        compact = generate.render_prices_compact_page(sections, costs)
+        assert drip_divider_count(compact) == 0, (
+            "the compact sheets stay divider-free by design"
+        )
+
     def test_priced_pages_render_through_their_own_templates(self, no_fit_build):
         regular = (no_fit_build / "prices.html").read_text()
         compact = (no_fit_build / "prices/compact.html").read_text()
@@ -2520,6 +2538,13 @@ class TestPricesMenuPage:
         )
         assert tagged == ["MÁT-CHA"]
 
+    def test_priced_menu_has_four_drip_dividers_between_five_sections(self):
+        menu = generate.parse_menu(RECIPES_CAFE.read_text())
+        _, costs = joined_prices()
+        page = generate.render_prices_menu_page(menu, costs)
+        assert len(menu.sections) == 5
+        assert drip_divider_count(page) == len(menu.sections) - 1
+
     def test_priced_menu_carries_the_kem_section_note_in_its_section(self):
         menu = generate.parse_menu(RECIPES_CAFE.read_text())
         _, costs = joined_prices()
@@ -2599,6 +2624,17 @@ def item_blocks(section_html: str) -> list[str]:
         section_html,
         re.S,
     )
+
+
+def drip_divider_count(page: str) -> int:
+    """Count one rendered page's phin-drip dividers.
+
+    The count keys on the divider's aria-hidden opening tag, the exact
+    bytes render_kitchen_page and its sibling multi-section renderers
+    emit between sections.
+    """
+
+    return page.count('<div class="drip" aria-hidden="true">')
 
 
 def item_block_for_name(page: str, name_en: str) -> str:
@@ -2764,7 +2800,7 @@ class TestKitchenRender:
 
     def test_render_has_four_drip_dividers_between_five_sections(self):
         page = self._kitchen_page()
-        assert page.count('<div class="drip" aria-hidden="true">') == 4
+        assert drip_divider_count(page) == 4
 
     def test_render_has_no_pills_or_ordering_artifacts(self):
         page = self._kitchen_page()
@@ -2813,7 +2849,7 @@ class TestPantryRender:
 
     def test_render_has_two_drip_dividers_between_three_sections(self):
         page = self._pantry_page()
-        assert page.count('<div class="drip" aria-hidden="true">') == 2
+        assert drip_divider_count(page) == 2
 
     def test_render_has_no_pills_or_ordering_artifacts(self):
         page = self._pantry_page()

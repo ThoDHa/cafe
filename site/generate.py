@@ -578,6 +578,15 @@ def read_template(name: str) -> str:
 MENU_PAGE_BREAK_SECTION_ID = "mat-cha"
 OWN_PAGE_CSS_CLASS = "own-page"
 
+# The phin-drip divider rendered between every multi-section page's
+# sections; only the compact sheets join sections with a bare newline,
+# and the templates hide the divider in print.
+DRIP_DIVIDER = (
+    "\n\n"
+    '  <div class="drip" aria-hidden="true">'
+    "<span></span><span></span><span></span></div>\n\n"
+)
+
 
 def own_page_class(section: Section) -> str | None:
     """Return the print page-break class for the Mát-cha section, else None."""
@@ -597,7 +606,7 @@ def render_menu_page(menu: Menu) -> str:
     """
 
     template = read_template("menu.html")
-    sections_html = "\n".join(
+    sections_html = DRIP_DIVIDER.join(
         render_section(
             section,
             css_class=own_page_class(section),
@@ -842,7 +851,7 @@ def render_prices_page(
     """
 
     template = read_template("prices.html")
-    sections_html = "\n".join(
+    sections_html = DRIP_DIVIDER.join(
         render_section(
             section,
             priced_item_renderer(costs, section.show_pills),
@@ -881,7 +890,7 @@ def render_prices_menu_page(
     """
 
     template = read_template("prices-menu.html")
-    sections_html = "\n".join(
+    sections_html = DRIP_DIVIDER.join(
         render_section(
             section,
             selling_price_item_renderer(costs, section.show_pills),
@@ -933,15 +942,6 @@ def render_bar_page(items: list[Item]) -> str:
         '<div class="items">', items_open_tag(len(items), columns=2)
     )
     return template.replace("<!--ITEMS-->", items_html)
-
-
-# The phin-drip divider rendered between a multi-section page's sections
-# (kitchen, pantry); the templates hide it in print.
-DRIP_DIVIDER = (
-    "\n\n"
-    '  <div class="drip" aria-hidden="true">'
-    "<span></span><span></span><span></span></div>\n\n"
-)
 
 
 def render_kitchen_page(kitchen: KitchenMenu) -> str:
